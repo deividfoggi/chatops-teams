@@ -110,3 +110,17 @@ output "key_vault_uri" {
   description = "The URI of the Key Vault"
   value       = azurerm_key_vault.chatops.vault_uri
 }
+
+# =============================================================================
+# Key Vault RBAC Role Assignment Outputs
+# =============================================================================
+
+output "key_vault_admin_role_assignment_id" {
+  description = "The resource ID of the Key Vault Administrator role assignment (null if not created)"
+  value       = length(azurerm_role_assignment.kv_admin) > 0 ? azurerm_role_assignment.kv_admin[0].id : null
+}
+
+output "key_vault_secrets_officer_role_assignment_id" {
+  description = "The resource ID of the Key Vault Secrets Officer role assignment (null if not created)"
+  value       = length(azurerm_role_assignment.kv_secrets_officer) > 0 ? azurerm_role_assignment.kv_secrets_officer[0].id : null
+}
