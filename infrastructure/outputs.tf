@@ -110,3 +110,27 @@ output "key_vault_uri" {
   description = "The URI of the Key Vault"
   value       = azurerm_key_vault.chatops.vault_uri
 }
+
+# =============================================================================
+# Key Vault Alerting Outputs
+# =============================================================================
+
+output "security_alerts_action_group_id" {
+  description = "The resource ID of the security alerts action group"
+  value       = azurerm_monitor_action_group.security_alerts.id
+}
+
+output "kv_failed_auth_alert_id" {
+  description = "The resource ID of the Key Vault failed authentication alert"
+  value       = azurerm_monitor_scheduled_query_rules_alert_v2.kv_failed_auth.id
+}
+
+output "kv_secret_access_anomaly_alert_id" {
+  description = "The resource ID of the Key Vault secret access anomaly alert"
+  value       = azurerm_monitor_scheduled_query_rules_alert_v2.kv_secret_access_anomaly.id
+}
+
+output "kv_secret_expiration_alert_id" {
+  description = "The resource ID of the Key Vault secret expiration alert"
+  value       = azurerm_monitor_scheduled_query_rules_alert_v2.kv_secret_expiration.id
+}

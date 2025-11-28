@@ -13,3 +13,9 @@ variable "owner" {
   description = "Team owner"
   type        = string
 }
+
+variable "security_alert_email" {
+  description = "Email address for security alerts notifications"
+  type        = string
+  default     = "security-team@company.com"
+}
