@@ -123,6 +123,9 @@ output "key_vault_admin_role_assignment_id" {
 output "key_vault_secrets_officer_role_assignment_id" {
   description = "The resource ID of the Key Vault Secrets Officer role assignment (null if not created)"
   value       = length(azurerm_role_assignment.kv_secrets_officer) > 0 ? azurerm_role_assignment.kv_secrets_officer[0].id : null
+}
+
+# =============================================================================
 # Key Vault Alerting Outputs
 # =============================================================================
 
