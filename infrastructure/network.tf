@@ -156,3 +156,181 @@ resource "azurerm_subnet_network_security_group_association" "gateway_nsg_assoc"
   subnet_id                 = azurerm_subnet.gateway_subnet.id
   network_security_group_id = azurerm_network_security_group.gateway_nsg.id
 }
+
+# =============================================================================
+# App Subnet Configuration
+# =============================================================================
+# This subnet hosts the App Service with VNet integration for the ChatOps
+# application. It includes delegation for Microsoft.Web/serverFarms.
+# =============================================================================
+
+resource "azurerm_subnet" "app_subnet" {
+  name                 = "app-subnet"
+  resource_group_name  = azurerm_resource_group.chatops.name
+  virtual_network_name = azurerm_virtual_network.chatops_vnet.name
+  address_prefixes     = ["10.0.1.0/24"]
+
+  delegation {
+    name = "app-service-delegation"
+
+    service_delegation {
+      name = "Microsoft.Web/serverFarms"
+      actions = [
+        "Microsoft.Network/virtualNetworks/subnets/action"
+      ]
+    }
+  }
+}
+
+# =============================================================================
+# Network Security Group for App Subnet
+# =============================================================================
+# This NSG controls traffic to and from the app subnet following the principle
+# of least privilege. It allows inbound traffic only from the gateway subnet
+# and outbound HTTPS to the internet, with a default deny rule.
+# =============================================================================
+
+resource "azurerm_network_security_group" "app_nsg" {
+  name                = "app-nsg"
+  location            = azurerm_resource_group.chatops.location
+  resource_group_name = azurerm_resource_group.chatops.name
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    ManagedBy   = "Terraform"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# NSG Security Rules
+# -----------------------------------------------------------------------------
+# Note: The gateway subnet (10.0.2.0/24) referenced below will be created
+# in a future story (Story 6.2: Deploy Azure Application Gateway with WAF).
+# This rule allows inbound HTTPS traffic only from the Application Gateway.
+# -----------------------------------------------------------------------------
+
+resource "azurerm_network_security_rule" "allow_gateway_inbound" {
+  name                        = "AllowGatewayInbound"
+  priority                    = 100
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "443"
+  source_address_prefix       = "10.0.2.0/24"
+  destination_address_prefix  = "*"
+  resource_group_name         = azurerm_resource_group.chatops.name
+  network_security_group_name = azurerm_network_security_group.app_nsg.name
+}
+
+resource "azurerm_network_security_rule" "allow_internet_outbound" {
+  name                        = "AllowInternetOutbound"
+  priority                    = 100
+  direction                   = "Outbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "443"
+  source_address_prefix       = "*"
+  destination_address_prefix  = "Internet"
+  resource_group_name         = azurerm_resource_group.chatops.name
+  network_security_group_name = azurerm_network_security_group.app_nsg.name
+}
+
+resource "azurerm_network_security_rule" "deny_all_inbound" {
+  name                        = "DenyAllInbound"
+  priority                    = 4096
+  direction                   = "Inbound"
+  access                      = "Deny"
+  protocol                    = "*"
+  source_port_range           = "*"
+  destination_port_range      = "*"
+  source_address_prefix       = "*"
+  destination_address_prefix  = "*"
+  resource_group_name         = azurerm_resource_group.chatops.name
+  network_security_group_name = azurerm_network_security_group.app_nsg.name
+}
+
+# -----------------------------------------------------------------------------
+# Subnet-NSG Association
+# -----------------------------------------------------------------------------
+
+resource "azurerm_subnet_network_security_group_association" "app_nsg_assoc" {
+  subnet_id                 = azurerm_subnet.app_subnet.id
+  network_security_group_id = azurerm_network_security_group.app_nsg.id
+}
+
+# =============================================================================
+# NSG Flow Logs Configuration
+# =============================================================================
+# Flow logs provide visibility into network traffic patterns for security
+# monitoring and troubleshooting. Traffic analytics enables advanced insights
+# through integration with Log Analytics.
+# =============================================================================
+
+resource "random_string" "storage_suffix" {
+  length  = 8
+  special = false
+  upper   = false
+}
+
+resource "azurerm_storage_account" "nsg_flow_logs" {
+  name                     = "chatopsnsgflow${random_string.storage_suffix.result}"
+  resource_group_name      = azurerm_resource_group.chatops.name
+  location                 = azurerm_resource_group.chatops.location
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+  min_tls_version          = "TLS1_2"
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    Purpose     = "NSG Flow Logs"
+    ManagedBy   = "Terraform"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Network Watcher Resource Group
+# -----------------------------------------------------------------------------
+# Azure automatically creates a Network Watcher in a resource group named
+# NetworkWatcherRG when you first use Network Watcher features. If that
+# resource group doesn't exist yet, we create our own Network Watcher
+# in the ChatOps resource group.
+# -----------------------------------------------------------------------------
+
+resource "azurerm_network_watcher" "chatops" {
+  name                = "chatops-network-watcher"
+  location            = azurerm_resource_group.chatops.location
+  resource_group_name = azurerm_resource_group.chatops.name
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    ManagedBy   = "Terraform"
+  }
+}
+
+resource "azurerm_network_watcher_flow_log" "app_nsg_flow_log" {
+  name                      = "app-nsg-flow-log"
+  network_watcher_name      = azurerm_network_watcher.chatops.name
+  resource_group_name       = azurerm_resource_group.chatops.name
+  network_security_group_id = azurerm_network_security_group.app_nsg.id
+  storage_account_id        = azurerm_storage_account.nsg_flow_logs.id
+  enabled                   = true
+  version                   = 2
+
+  retention_policy {
+    enabled = true
+    days    = 90
+  }
+
+  traffic_analytics {
+    enabled               = true
+    workspace_id          = azurerm_log_analytics_workspace.chatops.workspace_id
+    workspace_region      = azurerm_log_analytics_workspace.chatops.location
+    workspace_resource_id = azurerm_log_analytics_workspace.chatops.id
+    interval_in_minutes   = 10
+  }
+}
