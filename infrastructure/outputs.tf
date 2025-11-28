@@ -110,3 +110,27 @@ output "key_vault_uri" {
   description = "The URI of the Key Vault"
   value       = azurerm_key_vault.chatops.vault_uri
 }
+
+# =============================================================================
+# Azure Monitor Alert Outputs
+# =============================================================================
+
+output "action_group_id" {
+  description = "The resource ID of the operations alerts action group"
+  value       = azurerm_monitor_action_group.ops_alerts.id
+}
+
+output "high_exception_rate_alert_id" {
+  description = "The resource ID of the high exception rate alert"
+  value       = azurerm_monitor_scheduled_query_rules_alert_v2.high_exception_rate.id
+}
+
+output "failed_dependency_alert_id" {
+  description = "The resource ID of the failed dependency alert"
+  value       = azurerm_monitor_scheduled_query_rules_alert_v2.failed_dependency.id
+}
+
+output "slow_response_time_alert_id" {
+  description = "The resource ID of the slow response time alert"
+  value       = azurerm_monitor_scheduled_query_rules_alert_v2.slow_response_time.id
+}
