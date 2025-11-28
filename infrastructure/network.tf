@@ -30,7 +30,7 @@
 #
 # To enable DDoS Protection Standard in the future, uncomment the ddos block
 # and create the corresponding azurerm_network_ddos_protection_plan resource.
-# ----------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 
 resource "azurerm_virtual_network" "chatops_vnet" {
   name                = "chatops-vnet"
