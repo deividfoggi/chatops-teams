@@ -21,6 +21,8 @@ resource "azurerm_application_insights" "chatops" {
   tags = {
     Environment = var.environment
     Application = "ChatOps"
+    CostCenter  = var.cost_center
+    Owner       = var.owner
     ManagedBy   = "Terraform"
   }
 }
@@ -43,6 +45,8 @@ resource "azurerm_application_insights" "chatops" {
 #   tags = {
 #     Environment = var.environment
 #     Application = "ChatOps"
+#     CostCenter  = var.cost_center
+#     Owner       = var.owner
 #     ManagedBy   = "Terraform"
 #   }
 # }
