@@ -65,3 +65,22 @@ output "app_nsg_name" {
   description = "The name of the app network security group"
   value       = azurerm_network_security_group.app_nsg.name
 }
+
+# =============================================================================
+# Key Vault Outputs
+# =============================================================================
+
+output "key_vault_id" {
+  description = "The resource ID of the Key Vault"
+  value       = azurerm_key_vault.chatops.id
+}
+
+output "key_vault_name" {
+  description = "The name of the Key Vault"
+  value       = azurerm_key_vault.chatops.name
+}
+
+output "key_vault_uri" {
+  description = "The URI of the Key Vault"
+  value       = azurerm_key_vault.chatops.vault_uri
+}
