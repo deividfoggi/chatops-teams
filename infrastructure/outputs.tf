@@ -67,6 +67,32 @@ output "app_nsg_name" {
 }
 
 # =============================================================================
+# Application Insights Outputs
+# =============================================================================
+
+output "application_insights_instrumentation_key" {
+  description = "The instrumentation key for Application Insights"
+  value       = azurerm_application_insights.chatops.instrumentation_key
+  sensitive   = true
+}
+
+output "application_insights_connection_string" {
+  description = "The connection string for Application Insights"
+  value       = azurerm_application_insights.chatops.connection_string
+  sensitive   = true
+}
+
+output "application_insights_id" {
+  description = "The resource ID of Application Insights"
+  value       = azurerm_application_insights.chatops.id
+}
+
+output "application_insights_app_id" {
+  description = "The App ID of Application Insights"
+  value       = azurerm_application_insights.chatops.app_id
+}
+
+# =============================================================================
 # Key Vault Outputs
 # =============================================================================
 
