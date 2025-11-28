@@ -32,3 +32,36 @@ output "vnet_address_space" {
   description = "The address space of the virtual network"
   value       = azurerm_virtual_network.chatops_vnet.address_space
 }
+
+# =============================================================================
+# App Subnet Outputs
+# =============================================================================
+
+output "app_subnet_id" {
+  description = "The resource ID of the app subnet"
+  value       = azurerm_subnet.app_subnet.id
+}
+
+output "app_subnet_name" {
+  description = "The name of the app subnet"
+  value       = azurerm_subnet.app_subnet.name
+}
+
+output "app_subnet_address_prefixes" {
+  description = "The address prefixes of the app subnet"
+  value       = azurerm_subnet.app_subnet.address_prefixes
+}
+
+# =============================================================================
+# Network Security Group Outputs
+# =============================================================================
+
+output "app_nsg_id" {
+  description = "The resource ID of the app network security group"
+  value       = azurerm_network_security_group.app_nsg.id
+}
+
+output "app_nsg_name" {
+  description = "The name of the app network security group"
+  value       = azurerm_network_security_group.app_nsg.name
+}
