@@ -91,7 +91,8 @@ jobs:
             -backend-config="resource_group_name=${{ secrets.TERRAFORM_BACKEND_RG }}" \
             -backend-config="storage_account_name=${{ secrets.TERRAFORM_BACKEND_SA }}" \
             -backend-config="container_name=tfstate" \
-            -backend-config="key=${{ matrix.environment }}.tfstate"
+            -backend-config="key=${{ matrix.environment }}.tfstate" \
+            -backend-config="use_azuread_auth=true"
         working-directory: ./infrastructure
         env:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
