@@ -123,4 +123,25 @@ output "key_vault_admin_role_assignment_id" {
 output "key_vault_secrets_officer_role_assignment_id" {
   description = "The resource ID of the Key Vault Secrets Officer role assignment (null if not created)"
   value       = length(azurerm_role_assignment.kv_secrets_officer) > 0 ? azurerm_role_assignment.kv_secrets_officer[0].id : null
+# Key Vault Alerting Outputs
+# =============================================================================
+
+output "security_alerts_action_group_id" {
+  description = "The resource ID of the security alerts action group"
+  value       = azurerm_monitor_action_group.security_alerts.id
+}
+
+output "kv_failed_auth_alert_id" {
+  description = "The resource ID of the Key Vault failed authentication alert"
+  value       = azurerm_monitor_scheduled_query_rules_alert_v2.kv_failed_auth.id
+}
+
+output "kv_secret_access_anomaly_alert_id" {
+  description = "The resource ID of the Key Vault secret access anomaly alert"
+  value       = azurerm_monitor_scheduled_query_rules_alert_v2.kv_secret_access_anomaly.id
+}
+
+output "kv_secret_expiration_alert_id" {
+  description = "The resource ID of the Key Vault secret expiration alert"
+  value       = azurerm_monitor_scheduled_query_rules_alert_v2.kv_secret_expiration.id
 }
