@@ -72,3 +72,87 @@ resource "azurerm_virtual_network" "chatops_vnet" {
 #   }
 # }
 # =============================================================================
+
+# =============================================================================
+# Gateway Subnet Configuration
+# =============================================================================
+# This subnet is used for Application Gateway or VPN Gateway resources.
+# The /24 CIDR provides 256 addresses which is sufficient for gateway scaling.
+# =============================================================================
+
+resource "azurerm_subnet" "gateway_subnet" {
+  name                 = "gateway-subnet"
+  resource_group_name  = azurerm_resource_group.chatops.name
+  virtual_network_name = azurerm_virtual_network.chatops_vnet.name
+  address_prefixes     = ["10.0.2.0/24"]
+}
+
+# =============================================================================
+# Gateway Network Security Group
+# =============================================================================
+# NSG for gateway subnet to control inbound and outbound traffic.
+# =============================================================================
+
+resource "azurerm_network_security_group" "gateway_nsg" {
+  name                = "gateway-nsg"
+  location            = azurerm_resource_group.chatops.location
+  resource_group_name = azurerm_resource_group.chatops.name
+
+  tags = {
+    Environment = "Production"
+    Application = "ChatOps"
+    ManagedBy   = "Terraform"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# NSG Rule: Allow HTTPS Inbound
+# -----------------------------------------------------------------------------
+# Allows HTTPS traffic from the internet for secure web access.
+# -----------------------------------------------------------------------------
+
+resource "azurerm_network_security_rule" "allow_https_inbound" {
+  name                        = "AllowHTTPSInbound"
+  priority                    = 100
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "443"
+  source_address_prefix       = "Internet"
+  destination_address_prefix  = "*"
+  resource_group_name         = azurerm_resource_group.chatops.name
+  network_security_group_name = azurerm_network_security_group.gateway_nsg.name
+}
+
+# -----------------------------------------------------------------------------
+# NSG Rule: Allow Gateway Manager
+# -----------------------------------------------------------------------------
+# Required for Azure Application Gateway v2 health probes and management.
+# Azure Gateway Manager service tag requires access to ports 65200-65535.
+# -----------------------------------------------------------------------------
+
+resource "azurerm_network_security_rule" "allow_gateway_manager" {
+  name                        = "AllowGatewayManager"
+  priority                    = 110
+  direction                   = "Inbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "65200-65535"
+  source_address_prefix       = "GatewayManager"
+  destination_address_prefix  = "*"
+  resource_group_name         = azurerm_resource_group.chatops.name
+  network_security_group_name = azurerm_network_security_group.gateway_nsg.name
+}
+
+# -----------------------------------------------------------------------------
+# Gateway Subnet - NSG Association
+# -----------------------------------------------------------------------------
+# Associates the gateway NSG with the gateway subnet.
+# -----------------------------------------------------------------------------
+
+resource "azurerm_subnet_network_security_group_association" "gateway_nsg_assoc" {
+  subnet_id                 = azurerm_subnet.gateway_subnet.id
+  network_security_group_id = azurerm_network_security_group.gateway_nsg.id
+}
