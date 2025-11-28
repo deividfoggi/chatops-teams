@@ -100,7 +100,7 @@ This alert triggers when an unusually high number of secret access operations ar
      ```kusto
      AzureDiagnostics
      | where ResourceType == "VAULTS"
-     | where OperationName == "SecretGet" or OperationName == "SecretList"
+     | where OperationName in ("SecretGet", "SecretList")
      | where TimeGenerated > ago(2h)
      | summarize AccessCount = count(), Secrets = make_set(id_s) by CallerIPAddress, identity_claim_upn_s
      | order by AccessCount desc
