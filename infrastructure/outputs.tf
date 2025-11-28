@@ -90,6 +90,9 @@ output "application_insights_id" {
 output "application_insights_app_id" {
   description = "The App ID of Application Insights"
   value       = azurerm_application_insights.chatops.app_id
+}
+
+# =============================================================================
 # Key Vault Outputs
 # =============================================================================
 
