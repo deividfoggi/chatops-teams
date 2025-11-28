@@ -9,7 +9,7 @@ These workflows manage Azure infrastructure using Terraform:
 
 - **`infra-pr-validation.yml`** - Validates Terraform changes in pull requests
   - Runs on: PR to `main` or `develop` with changes in `infrastructure/`
-  - Actions: Format check, validate, plan, security scan (tfsec), cost estimation
+  - Actions: Format check, validate, plan, security scan (tfsec)
   
 - **`infra-deploy-dev.yml`** - Deploys infrastructure to development
   - Runs on: Push to `develop` with changes in `infrastructure/`
@@ -93,7 +93,6 @@ PROD_RESOURCE_GROUP          # Production resource group name
 ### Optional Secrets
 ```
 SONAR_TOKEN                  # SonarCloud authentication
-INFRACOST_API_KEY            # Infrastructure cost estimation
 CODECOV_TOKEN                # Code coverage reporting
 ```
 
@@ -125,8 +124,7 @@ infra-pr-validation.yml
   ├── Terraform format check
   ├── Terraform validate
   ├── Terraform plan (commented on PR)
-  ├── tfsec security scan
-  └── Infracost (optional)
+  └── tfsec security scan
   ↓
 Merge to develop
   ↓
