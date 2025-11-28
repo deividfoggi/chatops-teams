@@ -9,6 +9,7 @@
  */
 
 const appInsights = require('applicationinsights');
+const { v4: uuidv4 } = require('uuid');
 
 /**
  * Telemetry client configuration and wrapper
@@ -415,6 +416,11 @@ let telemetryInstance = null;
 function getTelemetryClient(config = {}) {
   if (!telemetryInstance) {
     telemetryInstance = new TelemetryClient(config);
+  } else if (Object.keys(config).length > 0) {
+    console.warn(
+      'TelemetryClient: Configuration ignored - singleton already initialized. ' +
+      'Configuration must be passed on the first call to getTelemetryClient().'
+    );
   }
   return telemetryInstance;
 }
@@ -426,8 +432,6 @@ function getTelemetryClient(config = {}) {
  * @returns {Function} Express middleware function
  */
 function createTracingMiddleware(telemetryClient) {
-  const { v4: uuidv4 } = require('uuid');
-
   return (req, res, next) => {
     // Get correlation ID from GitHub webhook header or generate new one
     const correlationId = req.headers['x-github-delivery'] || uuidv4();
