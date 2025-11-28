@@ -193,6 +193,16 @@ terraform apply tfplan
 | `azurerm_virtual_network` | chatops_vnet | Network isolation |
 | `azurerm_log_analytics_workspace` | chatops | Monitoring and logging |
 
+## Additional Documentation
+
+For detailed network architecture documentation, see:
+
+| Document | Description |
+|----------|-------------|
+| [Network Architecture](../docs/network-architecture.md) | VNet overview, subnet allocation, NSG rules, traffic flow, DR strategy |
+| [Network Troubleshooting](../docs/network-troubleshooting.md) | Common issues, Log Analytics queries, health checks |
+| [Network Diagram](../docs/network-diagram.drawio) | Visual network diagram (open with draw.io/diagrams.net) |
+
 ## Contributing
 
 1. Create a feature branch
