@@ -81,3 +81,77 @@ resource "azurerm_monitor_diagnostic_setting" "kv_diagnostics" {
     category = "AllMetrics"
   }
 }
+
+# =============================================================================
+# Key Vault RBAC Role Assignments
+# =============================================================================
+# Role assignments follow the principle of least privilege:
+#   - Key Vault Administrator: Full management access (for admin group)
+#   - Key Vault Secrets Officer: Create, read, update, delete secrets (for DevOps)
+#   - Key Vault Secrets User: Read secrets only (for applications)
+#
+# Note: RBAC authorization is enabled on the Key Vault (enable_rbac_authorization = true),
+# which means access is controlled through Azure AD RBAC instead of access policies.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Key Vault Administrator Role Assignment
+# -----------------------------------------------------------------------------
+# Grants full management capabilities over Key Vault including:
+#   - Manage secrets, keys, and certificates
+#   - Manage Key Vault access policies and settings
+#   - Recover deleted vaults and purge soft-deleted resources
+#
+# This role should be assigned to the admin group responsible for
+# managing the Key Vault infrastructure.
+# -----------------------------------------------------------------------------
+
+resource "azurerm_role_assignment" "kv_admin" {
+  count = var.admin_group_object_id != null ? 1 : 0
+
+  scope                = azurerm_key_vault.chatops.id
+  role_definition_name = "Key Vault Administrator"
+  principal_id         = var.admin_group_object_id
+
+  description = "Admin group access for Key Vault management"
+}
+
+# -----------------------------------------------------------------------------
+# Key Vault Secrets Officer Role Assignment
+# -----------------------------------------------------------------------------
+# Grants permissions to manage secrets including:
+#   - Create, read, update, and delete secrets
+#   - Backup and restore secrets
+#   - Manage secret metadata
+#
+# This role is ideal for DevOps service principals that need to
+# manage application secrets during CI/CD deployments.
+# -----------------------------------------------------------------------------
+
+resource "azurerm_role_assignment" "kv_secrets_officer" {
+  count = var.devops_sp_object_id != null ? 1 : 0
+
+  scope                = azurerm_key_vault.chatops.id
+  role_definition_name = "Key Vault Secrets Officer"
+  principal_id         = var.devops_sp_object_id
+
+  description = "DevOps service principal access for secrets management"
+}
+
+# -----------------------------------------------------------------------------
+# TODO: Key Vault Secrets User Role Assignment for App Service
+# -----------------------------------------------------------------------------
+# Sprint 2 - Task 6.4.3 Dependency:
+# When App Service is deployed with managed identity, add a role assignment
+# for "Key Vault Secrets User" role. This grants read-only access to secrets,
+# following the principle of least privilege for application runtime access.
+#
+# Example:
+# resource "azurerm_role_assignment" "kv_secrets_user_app_service" {
+#   scope                = azurerm_key_vault.chatops.id
+#   role_definition_name = "Key Vault Secrets User"
+#   principal_id         = azurerm_linux_web_app.chatops.identity[0].principal_id
+#
+#   description = "App Service managed identity access for reading secrets"
+# }
+# -----------------------------------------------------------------------------

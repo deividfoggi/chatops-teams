@@ -1,0 +1,26 @@
+{
+  "name": "chatops-teams",
+  "version": "1.0.0",
+  "description": "ChatOps Teams Integration for GitHub security alerts and deployment approvals",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 0",
+    "lint": "echo \"No linting configured yet\""
+  },
+  "keywords": [
+    "chatops",
+    "teams",
+    "github",
+    "azure",
+    "application-insights"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "applicationinsights": "^2.9.5",
+    "uuid": "^9.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

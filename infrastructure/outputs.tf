@@ -112,25 +112,39 @@ output "key_vault_uri" {
 }
 
 # =============================================================================
-# Azure Monitor Alert Outputs
+# Key Vault RBAC Role Assignment Outputs
 # =============================================================================
 
-output "action_group_id" {
-  description = "The resource ID of the operations alerts action group"
-  value       = azurerm_monitor_action_group.ops_alerts.id
+output "key_vault_admin_role_assignment_id" {
+  description = "The resource ID of the Key Vault Administrator role assignment (null if not created)"
+  value       = length(azurerm_role_assignment.kv_admin) > 0 ? azurerm_role_assignment.kv_admin[0].id : null
 }
 
-output "high_exception_rate_alert_id" {
-  description = "The resource ID of the high exception rate alert"
-  value       = azurerm_monitor_scheduled_query_rules_alert_v2.high_exception_rate.id
+output "key_vault_secrets_officer_role_assignment_id" {
+  description = "The resource ID of the Key Vault Secrets Officer role assignment (null if not created)"
+  value       = length(azurerm_role_assignment.kv_secrets_officer) > 0 ? azurerm_role_assignment.kv_secrets_officer[0].id : null
 }
 
-output "failed_dependency_alert_id" {
-  description = "The resource ID of the failed dependency alert"
-  value       = azurerm_monitor_scheduled_query_rules_alert_v2.failed_dependency.id
+# =============================================================================
+# Key Vault Alerting Outputs
+# =============================================================================
+
+output "security_alerts_action_group_id" {
+  description = "The resource ID of the security alerts action group"
+  value       = azurerm_monitor_action_group.security_alerts.id
 }
 
-output "slow_response_time_alert_id" {
-  description = "The resource ID of the slow response time alert"
-  value       = azurerm_monitor_scheduled_query_rules_alert_v2.slow_response_time.id
+output "kv_failed_auth_alert_id" {
+  description = "The resource ID of the Key Vault failed authentication alert"
+  value       = azurerm_monitor_scheduled_query_rules_alert_v2.kv_failed_auth.id
+}
+
+output "kv_secret_access_anomaly_alert_id" {
+  description = "The resource ID of the Key Vault secret access anomaly alert"
+  value       = azurerm_monitor_scheduled_query_rules_alert_v2.kv_secret_access_anomaly.id
+}
+
+output "kv_secret_expiration_alert_id" {
+  description = "The resource ID of the Key Vault secret expiration alert"
+  value       = azurerm_monitor_scheduled_query_rules_alert_v2.kv_secret_expiration.id
 }
