@@ -95,6 +95,7 @@ This infrastructure is designed following the [Azure Well-Architected Framework]
 - **DDoS Protection:** Basic protection enabled by default with Standard available for upgrade
 - **Private Networking:** VNet foundation enables private endpoints and service endpoints
 - **No Hardcoded Secrets:** Sensitive values managed via variables and Azure Key Vault
+- **Key Vault RBAC:** Azure RBAC authorization (no legacy access policies) with least-privilege role assignments
 
 ## Prerequisites
 
@@ -192,6 +193,21 @@ terraform apply tfplan
 | `azurerm_resource_group` | chatops | Resource container |
 | `azurerm_virtual_network` | chatops_vnet | Network isolation |
 | `azurerm_log_analytics_workspace` | chatops | Monitoring and logging |
+| `azurerm_key_vault` | chatops | Secrets management |
+| `azurerm_role_assignment` | kv_admin | Key Vault Administrator role (admin group) |
+| `azurerm_role_assignment` | kv_secrets_officer | Key Vault Secrets Officer role (DevOps SP) |
+
+## Key Vault RBAC Roles
+
+The Key Vault uses Azure RBAC authorization (no legacy access policies) with the following roles:
+
+| Role | Assignee | Permissions |
+|------|----------|-------------|
+| Key Vault Administrator | Admin Group | Full management (secrets, keys, certificates, policies) |
+| Key Vault Secrets Officer | DevOps Service Principal | Create, update, delete secrets (for CI/CD) |
+| Key Vault Secrets User | App Service (Sprint 2) | Read secrets only (for applications) |
+
+> **Note:** Role assignments are conditionally created only when the corresponding object IDs are provided via Terraform variables.
 
 ## Contributing
 
