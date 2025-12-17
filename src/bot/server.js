@@ -2,14 +2,14 @@
  * Bot Server
  * 
  * Simple HTTP server to host the Teams bot endpoint.
- * This file demonstrates how to integrate the bot with an Express-like server.
+ * This file demonstrates how to integrate the bot with an Express server.
  * 
  * In production, this would be integrated with the main application server.
  * 
  * @module bot/server
  */
 
-const restify = require('restify');
+const express = require('express');
 const { createBotAdapter, TeamsBot, ConversationReferences, ProactiveMessagingService } = require('./index');
 const { getTelemetryClient } = require('../telemetry');
 
@@ -65,28 +65,25 @@ function createBotServer(config = {}) {
     telemetryClient
   );
 
-  // Create HTTP server
-  const server = restify.createServer({
-    name: 'ChatOps Teams Bot',
-    version: '1.0.0',
-  });
+  // Create Express app
+  const app = express();
 
-  server.use(restify.plugins.bodyParser());
-  server.use(restify.plugins.queryParser());
+  // Parse JSON bodies
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
 
   // Health check endpoint
-  server.get('/health', (req, res, next) => {
-    res.send(200, {
+  app.get('/health', (req, res) => {
+    res.json({
       status: 'healthy',
       service: 'ChatOps Teams Bot',
       version: '1.0.0',
       conversationCount: conversationReferences.size(),
     });
-    next();
   });
 
   // Bot messages endpoint
-  server.post('/api/messages', async (req, res, next) => {
+  app.post('/api/messages', async (req, res) => {
     try {
       await adapter.process(req, res, async (context) => {
         await bot.run(context);
@@ -100,20 +97,20 @@ function createBotServer(config = {}) {
         });
       }
 
-      res.send(500, { error: 'Internal server error' });
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Internal server error' });
+      }
     }
-    next();
   });
 
   // Proactive message endpoint (for testing/admin use)
   // In production, this should be protected with authentication
-  server.post('/api/proactive/:conversationId', async (req, res, next) => {
+  app.post('/api/proactive/:conversationId', async (req, res) => {
     const { conversationId } = req.params;
     const { message } = req.body;
 
     if (!message) {
-      res.send(400, { error: 'message is required' });
-      return next();
+      return res.status(400).json({ error: 'message is required' });
     }
 
     try {
@@ -123,9 +120,9 @@ function createBotServer(config = {}) {
       );
 
       if (success) {
-        res.send(200, { status: 'sent', conversationId });
+        res.json({ status: 'sent', conversationId });
       } else {
-        res.send(404, { error: 'Conversation not found' });
+        res.status(404).json({ error: 'Conversation not found' });
       }
     } catch (error) {
       console.error('Error sending proactive message:', error);
@@ -137,15 +134,14 @@ function createBotServer(config = {}) {
         });
       }
 
-      res.send(500, { error: 'Failed to send message' });
+      res.status(500).json({ error: 'Failed to send message' });
     }
-    next();
   });
 
   // Get conversation references (for debugging)
-  server.get('/api/conversations', (req, res, next) => {
+  app.get('/api/conversations', (req, res) => {
     const conversations = conversationReferences.getAll();
-    res.send(200, {
+    res.json({
       count: conversations.length,
       conversations: conversations.map((ref) => ({
         conversationId: ref.conversationId,
@@ -154,11 +150,10 @@ function createBotServer(config = {}) {
         lastUpdated: ref.lastUpdated,
       })),
     });
-    next();
   });
 
   return {
-    server,
+    app,
     adapter,
     bot,
     conversationReferences,
@@ -174,10 +169,10 @@ function createBotServer(config = {}) {
  * @param {number} [port=3978] - Port to listen on
  */
 function startBotServer(serverComponents, port = 3978) {
-  const { server, telemetryClient } = serverComponents;
+  const { app, telemetryClient } = serverComponents;
 
-  server.listen(port, () => {
-    console.log(`\n${server.name} listening on port ${port}`);
+  const server = app.listen(port, () => {
+    console.log(`\nChatOps Teams Bot listening on port ${port}`);
     console.log('\nBot endpoints:');
     console.log(`  POST http://localhost:${port}/api/messages - Bot messages endpoint`);
     console.log(`  GET  http://localhost:${port}/health - Health check`);
@@ -203,6 +198,8 @@ function startBotServer(serverComponents, port = 3978) {
       process.exit(0);
     });
   });
+
+  return server;
 }
 
 // If running directly, start the server

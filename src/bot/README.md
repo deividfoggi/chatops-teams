@@ -81,6 +81,7 @@ BOT_APP_ID=xxx BOT_APP_PASSWORD=yyy node src/bot/server.js
 ### Integration Example
 
 ```javascript
+const express = require('express');
 const { 
   createBotAdapter, 
   TeamsBot, 
@@ -114,11 +115,20 @@ const proactiveMessaging = new ProactiveMessagingService(
   telemetry
 );
 
+// Create Express app
+const app = express();
+app.use(express.json());
+
 // Handle bot messages
 app.post('/api/messages', async (req, res) => {
   await adapter.process(req, res, async (context) => {
     await bot.run(context);
   });
+});
+
+// Start server
+app.listen(3978, () => {
+  console.log('Bot listening on port 3978');
 });
 
 // Send proactive notification
