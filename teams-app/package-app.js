@@ -67,8 +67,10 @@ let manifestContent = fs.readFileSync(path.join(__dirname, 'manifest.json'), 'ut
 // Replace placeholders
 for (const [key, value] of Object.entries(envVars)) {
   const placeholder = `{{${key}}}`;
-  const count = (manifestContent.match(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
-  manifestContent = manifestContent.replace(new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), value);
+  const escapedPattern = placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(escapedPattern, 'g');
+  const count = (manifestContent.match(regex) || []).length;
+  manifestContent = manifestContent.replace(regex, value);
   
   if (count > 0) {
     if (value.startsWith('{{')) {

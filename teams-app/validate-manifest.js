@@ -72,9 +72,10 @@ if (manifest.manifestVersion) {
 
 // Validate version format (should be semver)
 if (manifest.version) {
-  const semverPattern = /^\d+\.\d+\.\d+$/;
+  // Supports basic semver including pre-release and build metadata
+  const semverPattern = /^\d+\.\d+\.\d+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/;
   if (!semverPattern.test(manifest.version)) {
-    warnings.push(`Version "${manifest.version}" does not follow semantic versioning (x.y.z)`);
+    warnings.push(`Version "${manifest.version}" does not follow semantic versioning (x.y.z[-prerelease][+build])`);
   }
 }
 
