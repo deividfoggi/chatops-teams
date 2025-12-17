@@ -242,10 +242,11 @@ class ProactiveMessagingService {
       await this.adapter.continueConversationWithRateLimit(
         conversationReference,
         async (context) => {
+          // Create a new activity object to avoid mutating the original
           const activity =
             typeof newMessage === 'string'
               ? MessageFactory.text(newMessage)
-              : newMessage;
+              : { ...newMessage }; // Clone the activity object
           
           activity.id = activityId;
           await context.updateActivity(activity);

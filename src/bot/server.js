@@ -104,10 +104,15 @@ function createBotServer(config = {}) {
   });
 
   // Proactive message endpoint (for testing/admin use)
-  // In production, this should be protected with authentication
+  // WARNING: This endpoint is for testing/development only!
+  // In production, this MUST be protected with proper authentication/authorization
+  // TODO: Add authentication middleware (e.g., Azure AD bearer token validation)
   app.post('/api/proactive/:conversationId', async (req, res) => {
     const { conversationId } = req.params;
     const { message } = req.body;
+
+    // TODO: Add authentication check
+    // Example: if (!req.user || !req.user.roles.includes('admin')) { return res.status(403).json({ error: 'Forbidden' }); }
 
     if (!message) {
       return res.status(400).json({ error: 'message is required' });

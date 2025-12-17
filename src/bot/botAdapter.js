@@ -100,10 +100,14 @@ function createBotAdapter(config) {
   }
 
   // Create credential factory
+  // Note: Bot is configured as MultiTenant by default to support installation across multiple tenants.
+  // For production deployments with a single tenant, change MicrosoftAppType to 'SingleTenant' 
+  // and set MicrosoftAppTenantId for enhanced security.
   const credentialsFactory = new ConfigurationServiceClientCredentialFactory({
     MicrosoftAppId: appId,
     MicrosoftAppPassword: appPassword,
-    MicrosoftAppType: 'MultiTenant', // or 'SingleTenant' for specific tenant
+    MicrosoftAppType: 'MultiTenant', // Change to 'SingleTenant' for single-tenant deployments
+    // MicrosoftAppTenantId: 'your-tenant-id', // Required for SingleTenant
   });
 
   // Create bot framework authentication

@@ -11,8 +11,30 @@
 /**
  * In-memory storage for conversation references
  * 
- * In a production environment, this should be replaced with a database
- * storage solution (e.g., Azure SQL, Cosmos DB, Table Storage)
+ * NOTE: This is a simple in-memory implementation suitable for development and testing.
+ * For production deployments, replace with a persistent storage solution.
+ * 
+ * Recommended production alternatives:
+ * 1. Azure SQL Database:
+ *    - Store conversation references in a table with conversation ID as primary key
+ *    - Include indexes on userId and tenantId for efficient filtering
+ *    - Schema: conversationId, userId, serviceUrl, channelId, tenantId, referenceJson, lastUpdated
+ * 
+ * 2. Azure Cosmos DB:
+ *    - Use conversation ID as partition key for optimal performance
+ *    - Enable TTL (Time To Live) for automatic cleanup of stale references
+ *    - Store entire conversation reference as JSON document
+ * 
+ * 3. Azure Table Storage:
+ *    - Low-cost option for simple key-value storage
+ *    - Use conversation ID as RowKey, tenantId as PartitionKey
+ *    - Good for high-volume scenarios with simple query patterns
+ * 
+ * Migration considerations:
+ * - Implement the same interface (get, set, delete, has, getAll, getByUserId, getByTenantId)
+ * - Handle connection failures and implement retry logic
+ * - Consider caching for frequently accessed conversation references
+ * - Implement cleanup strategy for inactive conversations (e.g., delete after 90 days)
  */
 class ConversationReferences {
   constructor() {
