@@ -1,0 +1,24 @@
+# Node.js
+node_modules/
+npm-debug.log*
+package-lock.json
+
+# Build outputs
+*.zip
+!example*.zip
+
+# Environment files
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp

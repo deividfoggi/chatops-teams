@@ -1,0 +1,29 @@
+{
+  "name": "chatops-teams-app",
+  "version": "1.0.0",
+  "description": "Microsoft Teams App package for ChatOps Teams",
+  "private": true,
+  "scripts": {
+    "create-icons": "node create-icons.js",
+    "package": "node package-app.js",
+    "package:dev": "MICROSOFT_APP_ID=${MICROSOFT_APP_ID:-placeholder} AZURE_APP_SERVICE_DOMAIN=${AZURE_APP_SERVICE_DOMAIN:-placeholder.azurewebsites.net} ENTRA_CLIENT_ID=${ENTRA_CLIENT_ID:-placeholder} node package-app.js chatops-teams-dev.zip",
+    "validate": "node validate-manifest.js"
+  },
+  "keywords": [
+    "teams",
+    "microsoft-teams",
+    "bot",
+    "chatops"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "archiver": "^6.0.1"
+  },
+  "devDependencies": {
+    "ajv": "^8.12.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
