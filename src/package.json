@@ -4,6 +4,8 @@
   "description": "ChatOps Teams Integration for GitHub security alerts and deployment approvals",
   "main": "index.js",
   "scripts": {
+    "start": "node bot/server.js",
+    "start:dev": "NODE_ENV=development node bot/server.js",
     "test": "echo \"Error: no test specified\" && exit 0",
     "lint": "echo \"No linting configured yet\""
   },
@@ -18,7 +20,9 @@
   "license": "UNLICENSED",
   "dependencies": {
     "applicationinsights": "^2.9.5",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "botbuilder": "^4.20.0",
+    "restify": "^11.1.0"
   },
   "engines": {
     "node": ">=18.0.0"
