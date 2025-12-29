@@ -9,6 +9,17 @@ variable "environment" {
   }
 }
 
+variable "location" {
+  description = "Azure region for all resources"
+  type        = string
+  default     = "eastus"
+
+  validation {
+    condition     = can(regex("^[a-z0-9]+$", var.location))
+    error_message = "Location must be a valid Azure region name (e.g., eastus, westus2, eastus2)."
+  }
+}
+
 variable "cost_center" {
   description = "Cost center for billing"
   type        = string
