@@ -176,7 +176,7 @@ resource "azurerm_subnet" "app_subnet" {
     name = "app-service-delegation"
 
     service_delegation {
-      name = "Microsoft.Web/serverFarms"
+      name = "Microsoft.App/environments"
       actions = [
         "Microsoft.Network/virtualNetworks/subnets/action"
       ]
