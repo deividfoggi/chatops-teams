@@ -204,7 +204,7 @@ output "application_gateway_public_ip_fqdn" {
 
 output "application_gateway_backend_pool_id" {
   description = "The ID of the Application Gateway backend address pool"
-  value       = tolist(azurerm_application_gateway.chatops.backend_address_pool)[0].id
+  value       = length(azurerm_application_gateway.chatops.backend_address_pool) > 0 ? tolist(azurerm_application_gateway.chatops.backend_address_pool)[0].id : null
 }
 
 # =============================================================================
