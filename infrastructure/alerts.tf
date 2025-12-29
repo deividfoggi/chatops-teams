@@ -187,3 +187,54 @@ resource "azurerm_monitor_scheduled_query_rules_alert_v2" "slow_response_time" {
     ManagedBy   = "Terraform"
   }
 }
+
+# -----------------------------------------------------------------------------
+# Availability Test Failure Alert
+# -----------------------------------------------------------------------------
+# Monitors for availability test failures across all regions.
+# Triggers when availability tests fail from 2 or more regions within 10 minutes.
+# Severity: 1 (Error) - Indicates potential service outage or degradation
+# -----------------------------------------------------------------------------
+
+resource "azurerm_monitor_scheduled_query_rules_alert_v2" "availability_test_failure" {
+  name                = "availability-test-failure"
+  location            = azurerm_resource_group.chatops.location
+  resource_group_name = azurerm_resource_group.chatops.name
+  description         = "Alert when availability tests fail from multiple regions within 10 minutes, indicating potential service outage or degradation."
+
+  evaluation_frequency = "PT5M"
+  window_duration      = "PT10M"
+  scopes               = [azurerm_application_insights.chatops.id]
+  severity             = 1
+  enabled              = true
+
+  criteria {
+    query = <<-QUERY
+      availabilityResults
+      | where timestamp > ago(10m)
+      | where success == false
+      | summarize FailedRegions = dcount(location)
+    QUERY
+
+    time_aggregation_method = "Count"
+    operator                = "GreaterThanOrEqual"
+    threshold               = 2
+
+    failing_periods {
+      minimum_failing_periods_to_trigger_alert = 1
+      number_of_evaluation_periods             = 1
+    }
+  }
+
+  action {
+    action_groups = [azurerm_monitor_action_group.ops_alerts.id]
+  }
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    CostCenter  = var.cost_center
+    Owner       = var.owner
+    ManagedBy   = "Terraform"
+  }
+}

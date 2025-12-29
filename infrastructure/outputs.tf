@@ -177,3 +177,37 @@ output "kv_secret_expiration_alert_id" {
   description = "The resource ID of the Key Vault secret expiration alert"
   value       = azurerm_monitor_scheduled_query_rules_alert_v2.kv_secret_expiration.id
 }
+
+# =============================================================================
+# Application Insights Availability Test Outputs
+# =============================================================================
+
+output "availability_test_eastus_id" {
+  description = "The resource ID of the East US availability test"
+  value       = azurerm_application_insights_standard_web_test.chatops_eastus.id
+}
+
+output "availability_test_westus_id" {
+  description = "The resource ID of the West US availability test"
+  value       = azurerm_application_insights_standard_web_test.chatops_westus.id
+}
+
+output "availability_test_northeurope_id" {
+  description = "The resource ID of the North Europe availability test"
+  value       = azurerm_application_insights_standard_web_test.chatops_northeurope.id
+}
+
+output "availability_test_southeastasia_id" {
+  description = "The resource ID of the Southeast Asia availability test"
+  value       = azurerm_application_insights_standard_web_test.chatops_southeastasia.id
+}
+
+output "availability_test_australiaeast_id" {
+  description = "The resource ID of the Australia East availability test"
+  value       = azurerm_application_insights_standard_web_test.chatops_australiaeast.id
+}
+
+output "availability_test_failure_alert_id" {
+  description = "The resource ID of the availability test failure alert"
+  value       = azurerm_monitor_scheduled_query_rules_alert_v2.availability_test_failure.id
+}

@@ -10,6 +10,7 @@ This document describes the custom metrics, dependency tracking, and distributed
 - [Dependencies Tracked](#dependencies-tracked)
 - [Distributed Tracing](#distributed-tracing)
 - [Custom Dimensions](#custom-dimensions)
+- [Availability Tests](#availability-tests)
 - [Query Examples](#query-examples)
 - [Alerting](#alerting)
 - [Troubleshooting](#troubleshooting)
@@ -307,6 +308,83 @@ All telemetry includes common dimensions set globally:
 | `region` | Azure region | `AZURE_REGION` env var |
 | `ai.cloud.role` | Cloud role for Application Map | Configuration |
 | `ai.cloud.roleInstance` | Instance ID | `WEBSITE_INSTANCE_ID` env var |
+
+## Availability Tests
+
+The ChatOps application is monitored via availability tests (also known as web tests) from multiple Azure regions to ensure global accessibility and detect outages quickly.
+
+### Test Configuration
+
+| Region | Location Code | Frequency | Timeout |
+|--------|---------------|-----------|---------|
+| East US | `us-va-ash-azr` | 5 minutes | 30 seconds |
+| West US | `us-ca-sjc-azr` | 5 minutes | 30 seconds |
+| North Europe | `emea-nl-ams-azr` | 5 minutes | 30 seconds |
+| Southeast Asia | `apac-sg-sin-azr` | 5 minutes | 30 seconds |
+| Australia East | `apac-au-syd-edge` | 5 minutes | 30 seconds |
+
+### Health Endpoint
+
+All availability tests target the `/health` endpoint:
+
+```
+GET https://chatops-app-{environment}.azurewebsites.net/health
+```
+
+**Expected Response:**
+- Status Code: `200 OK`
+- Body contains: `"healthy"`
+- Response time: < 30 seconds
+- SSL certificate valid with ≥ 7 days remaining
+
+### Validation Rules
+
+Each availability test validates:
+
+1. **HTTP Status**: Response code must be `200`
+2. **Content Match**: Response body must contain the text `"healthy"`
+3. **SSL Certificate**: Certificate must be valid and not expire within 7 days
+4. **Response Time**: Must respond within 30 seconds
+
+### Query Availability Results
+
+```kusto
+// Availability test success rate by region
+availabilityResults
+| where timestamp > ago(24h)
+| summarize 
+    total = count(),
+    successful = countif(success == true),
+    avgDuration = avg(duration)
+  by location
+| extend successRate = round(100.0 * successful / total, 2)
+| project location, total, successful, successRate, avgDuration
+| order by successRate asc
+```
+
+```kusto
+// Recent availability test failures
+availabilityResults
+| where timestamp > ago(1h)
+| where success == false
+| project 
+    timestamp,
+    location,
+    name,
+    duration,
+    resultCode = tostring(customDimensions.StatusCode),
+    message
+| order by timestamp desc
+```
+
+```kusto
+// Availability trends over time
+availabilityResults
+| where timestamp > ago(7d)
+| summarize successRate = round(100.0 * countif(success == true) / count(), 2)
+  by bin(timestamp, 1h), location
+| render timechart
+```
 
 ## Query Examples
 

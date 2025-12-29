@@ -30,24 +30,245 @@ resource "azurerm_application_insights" "chatops" {
 # =============================================================================
 # Key Vault Secret for Application Insights Connection String
 # =============================================================================
-# This resource will store the Application Insights connection string in
+# This resource stores the Application Insights connection string in
 # Azure Key Vault for secure access by applications.
-#
-# Note: Key Vault is not yet configured (Task 6.4.1 dependency).
-# Uncomment this resource once Key Vault is available.
 # =============================================================================
-#
-# resource "azurerm_key_vault_secret" "appinsights_connection_string" {
-#   name         = "appinsights-connection-string"
-#   value        = azurerm_application_insights.chatops.connection_string
-#   key_vault_id = azurerm_key_vault.chatops.id
-#
-#   tags = {
-#     Environment = var.environment
-#     Application = "ChatOps"
-#     CostCenter  = var.cost_center
-#     Owner       = var.owner
-#     ManagedBy   = "Terraform"
-#   }
-# }
+
+resource "azurerm_key_vault_secret" "appinsights_connection_string" {
+  name         = "appinsights-connection-string"
+  value        = azurerm_application_insights.chatops.connection_string
+  key_vault_id = azurerm_key_vault.chatops.id
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    CostCenter  = var.cost_center
+    Owner       = var.owner
+    ManagedBy   = "Terraform"
+  }
+}
+
 # =============================================================================
+# Application Insights Availability Tests
+# =============================================================================
+# These resources configure standard web tests to monitor application endpoint
+# health from multiple Azure regions following Azure Well-Architected Framework
+# reliability principles.
+#
+# Key Design Decisions:
+#   - Multi-region testing: Tests from 5 different regions for global coverage
+#   - 5-minute frequency: Balances cost and responsiveness
+#   - 30-second timeout: Appropriate for API endpoints
+#   - SSL validation: Ensures certificate validity
+#   - Success criteria: 200 status code and response within timeout
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Availability Test - East US (Primary Region)
+# -----------------------------------------------------------------------------
+
+resource "azurerm_application_insights_standard_web_test" "chatops_eastus" {
+  name                    = "chatops-availability-eastus"
+  location                = "eastus"
+  resource_group_name     = azurerm_resource_group.chatops.name
+  application_insights_id = azurerm_application_insights.chatops.id
+  
+  frequency               = 300 # 5 minutes
+  timeout                 = 30  # 30 seconds
+  enabled                 = true
+  geo_locations          = ["us-va-ash-azr"]  # East US
+
+  request {
+    url                   = "https://chatops-app-${var.environment}.azurewebsites.net/health"
+    http_verb             = "GET"
+    parse_dependent_requests = false
+  }
+
+  validation_rules {
+    ssl_cert_remaining_lifetime = 7  # Alert if SSL cert expires in 7 days
+    ssl_check_enabled           = true
+
+    expected_status_code = 200
+    content {
+      content_match = "healthy"
+      pass_if_text_found = true
+    }
+  }
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    CostCenter  = var.cost_center
+    Owner       = var.owner
+    ManagedBy   = "Terraform"
+    TestRegion  = "eastus"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Availability Test - West US
+# -----------------------------------------------------------------------------
+
+resource "azurerm_application_insights_standard_web_test" "chatops_westus" {
+  name                    = "chatops-availability-westus"
+  location                = "westus"
+  resource_group_name     = azurerm_resource_group.chatops.name
+  application_insights_id = azurerm_application_insights.chatops.id
+  
+  frequency               = 300
+  timeout                 = 30
+  enabled                 = true
+  geo_locations          = ["us-ca-sjc-azr"]  # West US
+
+  request {
+    url                   = "https://chatops-app-${var.environment}.azurewebsites.net/health"
+    http_verb             = "GET"
+    parse_dependent_requests = false
+  }
+
+  validation_rules {
+    ssl_cert_remaining_lifetime = 7
+    ssl_check_enabled           = true
+
+    expected_status_code = 200
+    content {
+      content_match = "healthy"
+      pass_if_text_found = true
+    }
+  }
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    CostCenter  = var.cost_center
+    Owner       = var.owner
+    ManagedBy   = "Terraform"
+    TestRegion  = "westus"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Availability Test - North Europe
+# -----------------------------------------------------------------------------
+
+resource "azurerm_application_insights_standard_web_test" "chatops_northeurope" {
+  name                    = "chatops-availability-northeurope"
+  location                = "northeurope"
+  resource_group_name     = azurerm_resource_group.chatops.name
+  application_insights_id = azurerm_application_insights.chatops.id
+  
+  frequency               = 300
+  timeout                 = 30
+  enabled                 = true
+  geo_locations          = ["emea-nl-ams-azr"]  # North Europe
+
+  request {
+    url                   = "https://chatops-app-${var.environment}.azurewebsites.net/health"
+    http_verb             = "GET"
+    parse_dependent_requests = false
+  }
+
+  validation_rules {
+    ssl_cert_remaining_lifetime = 7
+    ssl_check_enabled           = true
+
+    expected_status_code = 200
+    content {
+      content_match = "healthy"
+      pass_if_text_found = true
+    }
+  }
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    CostCenter  = var.cost_center
+    Owner       = var.owner
+    ManagedBy   = "Terraform"
+    TestRegion  = "northeurope"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Availability Test - Southeast Asia
+# -----------------------------------------------------------------------------
+
+resource "azurerm_application_insights_standard_web_test" "chatops_southeastasia" {
+  name                    = "chatops-availability-southeastasia"
+  location                = "southeastasia"
+  resource_group_name     = azurerm_resource_group.chatops.name
+  application_insights_id = azurerm_application_insights.chatops.id
+  
+  frequency               = 300
+  timeout                 = 30
+  enabled                 = true
+  geo_locations          = ["apac-sg-sin-azr"]  # Southeast Asia
+
+  request {
+    url                   = "https://chatops-app-${var.environment}.azurewebsites.net/health"
+    http_verb             = "GET"
+    parse_dependent_requests = false
+  }
+
+  validation_rules {
+    ssl_cert_remaining_lifetime = 7
+    ssl_check_enabled           = true
+
+    expected_status_code = 200
+    content {
+      content_match = "healthy"
+      pass_if_text_found = true
+    }
+  }
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    CostCenter  = var.cost_center
+    Owner       = var.owner
+    ManagedBy   = "Terraform"
+    TestRegion  = "southeastasia"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Availability Test - Australia East
+# -----------------------------------------------------------------------------
+
+resource "azurerm_application_insights_standard_web_test" "chatops_australiaeast" {
+  name                    = "chatops-availability-australiaeast"
+  location                = "australiaeast"
+  resource_group_name     = azurerm_resource_group.chatops.name
+  application_insights_id = azurerm_application_insights.chatops.id
+  
+  frequency               = 300
+  timeout                 = 30
+  enabled                 = true
+  geo_locations          = ["apac-au-syd-edge"]  # Australia East
+
+  request {
+    url                   = "https://chatops-app-${var.environment}.azurewebsites.net/health"
+    http_verb             = "GET"
+    parse_dependent_requests = false
+  }
+
+  validation_rules {
+    ssl_cert_remaining_lifetime = 7
+    ssl_check_enabled           = true
+
+    expected_status_code = 200
+    content {
+      content_match = "healthy"
+      pass_if_text_found = true
+    }
+  }
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    CostCenter  = var.cost_center
+    Owner       = var.owner
+    ManagedBy   = "Terraform"
+    TestRegion  = "australiaeast"
+  }
+}
