@@ -24,6 +24,13 @@ az keyvault show --name <your-keyvault-name> --query properties.vaultUri --outpu
 ```
 
 ## Secret Access from Code
+
+**Note:** The following packages are required to access Key Vault secrets from Node.js:
+```bash
+npm install @azure/identity @azure/keyvault-secrets
+```
+
+Example code:
 ```javascript
 const { DefaultAzureCredential } = require('@azure/identity');
 const { SecretClient } = require('@azure/keyvault-secrets');
