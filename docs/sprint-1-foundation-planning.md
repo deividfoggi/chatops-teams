@@ -8,8 +8,8 @@
 **Total Story Points:** 15  
 **Team Velocity:** 15-20 points/sprint (typical)
 
-**Sprint Start Date:** [TBD]  
-**Sprint End Date:** [TBD]
+**Sprint Start Date:** December 15, 2025 (estimated)  
+**Sprint End Date:** December 29, 2025 (completed)
 
 ---
 
@@ -379,8 +379,8 @@ A: Not recommended. Observability from day 1 prevents troubleshooting issues lat
 
 ## Sprint Retrospective
 
-**Sprint Review:** [TBD]  
-**Sprint Retrospective:** [TBD]
+**Sprint Review:** Completed December 29, 2025  
+**Sprint Retrospective:** Scheduled for early Sprint 2
 
 ### What Went Well
 - All three infrastructure components deployed successfully via Terraform

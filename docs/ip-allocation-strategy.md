@@ -220,9 +220,9 @@ The `/16` CIDR block was chosen for the following reasons:
 
 | Priority | Name | Direction | Action | Source | Destination | Port | Purpose |
 |----------|------|-----------|--------|--------|-------------|------|---------|
-| 100 | AllowGatewayInbound | Inbound | Allow | 10.0.2.0/24 | * | 443 | HTTPS from Application Gateway |
+| 100 | AllowGatewayInbound | Inbound | Allow | 10.0.2.0/24 | 10.0.1.0/24 | 443 | HTTPS from Application Gateway |
 | 4096 | DenyAllInbound | Inbound | Deny | * | * | * | Default deny |
-| 100 | AllowInternetOutbound | Outbound | Allow | * | Internet | 443 | HTTPS to external APIs |
+| 100 | AllowInternetOutbound | Outbound | Allow | 10.0.1.0/24 | Internet | 443 | HTTPS to external APIs |
 
 ### Gateway Subnet NSG Rules
 
