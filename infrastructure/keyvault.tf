@@ -139,19 +139,9 @@ resource "azurerm_role_assignment" "kv_secrets_officer" {
 }
 
 # -----------------------------------------------------------------------------
-# TODO: Key Vault Secrets User Role Assignment for App Service
+# Key Vault Secrets User Role Assignment for App Service
 # -----------------------------------------------------------------------------
-# Sprint 2 - Task 6.4.3 Dependency:
-# When App Service is deployed with managed identity, add a role assignment
-# for "Key Vault Secrets User" role. This grants read-only access to secrets,
+# This role assignment is now defined in app-service.tf after the App Service
+# is created with its managed identity. It grants read-only access to secrets,
 # following the principle of least privilege for application runtime access.
-#
-# Example:
-# resource "azurerm_role_assignment" "kv_secrets_user_app_service" {
-#   scope                = azurerm_key_vault.chatops.id
-#   role_definition_name = "Key Vault Secrets User"
-#   principal_id         = azurerm_linux_web_app.chatops.identity[0].principal_id
-#
-#   description = "App Service managed identity access for reading secrets"
-# }
 # -----------------------------------------------------------------------------

@@ -25,6 +25,10 @@ The infrastructure includes the following core components:
 | Resource Group | Container for all ChatOps resources |
 | Virtual Network | 10.0.0.0/16 address space for network isolation |
 | Log Analytics Workspace | Centralized logging and monitoring |
+| Application Insights | Application performance monitoring and telemetry |
+| Key Vault | Secure storage for secrets, keys, and certificates |
+| App Service Plan | PremiumV3 P1v3 (2 cores, 8GB RAM) with autoscaling |
+| App Service | Linux-based web app with VNet integration |
 
 ## IP Allocation Strategy
 
@@ -192,10 +196,54 @@ terraform apply tfplan
 |---------------|------|---------|
 | `azurerm_resource_group` | chatops | Resource container |
 | `azurerm_virtual_network` | chatops_vnet | Network isolation |
+| `azurerm_subnet` | app_subnet | App Service VNet integration |
+| `azurerm_subnet` | gateway_subnet | Application Gateway subnet |
 | `azurerm_log_analytics_workspace` | chatops | Monitoring and logging |
+| `azurerm_application_insights` | chatops | Application performance monitoring |
 | `azurerm_key_vault` | chatops | Secrets management |
+| `azurerm_service_plan` | chatops | App Service Plan (PremiumV3 P1v3) |
+| `azurerm_linux_web_app` | chatops | Linux web application |
+| `azurerm_monitor_autoscale_setting` | chatops_app_plan | Autoscaling for App Service Plan |
 | `azurerm_role_assignment` | kv_admin | Key Vault Administrator role (admin group) |
 | `azurerm_role_assignment` | kv_secrets_officer | Key Vault Secrets Officer role (DevOps SP) |
+| `azurerm_role_assignment` | kv_secrets_user_app_service | Key Vault Secrets User role (App Service) |
+
+## App Service Configuration
+
+The App Service is configured with the following features:
+
+### Compute
+- **SKU**: PremiumV3 P1v3 (2 cores, 8GB RAM)
+- **OS**: Linux
+- **Runtime**: Node.js 18 LTS
+- **Always On**: Enabled for production workloads
+
+### Autoscaling
+- **Default instances**: 1
+- **Min instances**: 1
+- **Max instances**: 5
+- **Scale-out triggers**:
+  - CPU > 75% (5-minute average)
+  - Memory > 85% (5-minute average)
+- **Scale-in triggers**:
+  - CPU < 25% (5-minute average)
+  - Memory < 30% (5-minute average)
+
+### Security
+- **Managed Identity**: System-assigned
+- **HTTPS Only**: Enabled
+- **Minimum TLS**: 1.2
+- **IP Restrictions**: Allow only Application Gateway subnet (10.0.2.0/24)
+- **Key Vault Integration**: Secrets accessed via managed identity
+
+### Networking
+- **VNet Integration**: Connected to app-subnet
+- **Outbound**: Via VNet (not direct internet)
+
+### Monitoring
+- **Health Check**: `/health` endpoint (5-minute eviction window)
+- **Application Insights**: Enabled with connection string
+- **Diagnostic Logs**: All categories enabled, sent to Log Analytics
 
 ## Key Vault RBAC Roles
 
@@ -205,7 +253,7 @@ The Key Vault uses Azure RBAC authorization (no legacy access policies) with the
 |------|----------|-------------|
 | Key Vault Administrator | Admin Group | Full management (secrets, keys, certificates, policies) |
 | Key Vault Secrets Officer | DevOps Service Principal | Create, update, delete secrets (for CI/CD) |
-| Key Vault Secrets User | App Service (Sprint 2) | Read secrets only (for applications) |
+| Key Vault Secrets User | App Service | Read secrets only (for applications) |
 
 > **Note:** Role assignments are conditionally created only when the corresponding object IDs are provided via Terraform variables.
 
