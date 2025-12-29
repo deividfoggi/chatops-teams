@@ -34,6 +34,25 @@ output "vnet_address_space" {
 }
 
 # =============================================================================
+# Gateway Subnet Outputs
+# =============================================================================
+
+output "gateway_subnet_id" {
+  description = "The resource ID of the gateway subnet"
+  value       = azurerm_subnet.gateway_subnet.id
+}
+
+output "gateway_subnet_name" {
+  description = "The name of the gateway subnet"
+  value       = azurerm_subnet.gateway_subnet.name
+}
+
+output "gateway_subnet_address_prefixes" {
+  description = "The address prefixes of the gateway subnet"
+  value       = azurerm_subnet.gateway_subnet.address_prefixes
+}
+
+# =============================================================================
 # App Subnet Outputs
 # =============================================================================
 
@@ -55,6 +74,16 @@ output "app_subnet_address_prefixes" {
 # =============================================================================
 # Network Security Group Outputs
 # =============================================================================
+
+output "gateway_nsg_id" {
+  description = "The resource ID of the gateway network security group"
+  value       = azurerm_network_security_group.gateway_nsg.id
+}
+
+output "gateway_nsg_name" {
+  description = "The name of the gateway network security group"
+  value       = azurerm_network_security_group.gateway_nsg.name
+}
 
 output "app_nsg_id" {
   description = "The resource ID of the app network security group"
