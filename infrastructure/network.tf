@@ -355,8 +355,6 @@ data "azurerm_client_config" "current" {}
 # azurerm provider 4.0+ which supports managed identity for flow logs.
 # -----------------------------------------------------------------------------
 
-# data "azurerm_client_config" "current" {}
-
 # resource "azurerm_role_assignment" "network_watcher_storage" {
 #   scope                = azurerm_storage_account.nsg_flow_logs.id
 #   role_definition_name = "Storage Blob Data Contributor"
