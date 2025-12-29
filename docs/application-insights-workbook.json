@@ -1,0 +1,358 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# ChatOps Teams - Operational Dashboard\n\nComprehensive monitoring dashboard for the ChatOps application including performance, business metrics, and security indicators."
+      }
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "time-range",
+            "name": "TimeRange",
+            "description": "Time range for all queries",
+            "type": 4,
+            "isRequired": true,
+            "value": {
+              "durationMs": 86400000
+            },
+            "typeSettings": {
+              "selectableValues": [
+                {
+                  "durationMs": 3600000,
+                  "label": "Last hour"
+                },
+                {
+                  "durationMs": 14400000,
+                  "label": "Last 4 hours"
+                },
+                {
+                  "durationMs": 86400000,
+                  "label": "Last 24 hours"
+                },
+                {
+                  "durationMs": 604800000,
+                  "label": "Last 7 days"
+                }
+              ]
+            }
+          },
+          {
+            "id": "environment",
+            "name": "Environment",
+            "description": "Filter by environment",
+            "type": 2,
+            "isRequired": false,
+            "query": "customEvents\r\n| extend env = tostring(customDimensions.environment)\r\n| where isnotempty(env)\r\n| distinct env\r\n| order by env asc",
+            "value": "All",
+            "typeSettings": {
+              "additionalResourceOptions": [
+                "value::all"
+              ],
+              "showDefault": false
+            },
+            "queryType": 0,
+            "resourceType": "microsoft.insights/components"
+          }
+        ]
+      }
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Overview Metrics"
+      }
+    },
+    {
+      "type": 10,
+      "content": {
+        "chartId": "workbook-total-requests",
+        "version": "MetricsItem/2.0",
+        "size": 3,
+        "chartType": -1,
+        "metricScope": 0,
+        "resourceIds": [],
+        "timeContext": {
+          "durationMs": 0
+        },
+        "timeContextFromParameter": "TimeRange",
+        "metrics": [
+          {
+            "namespace": "microsoft.insights/components",
+            "metric": "microsoft.insights/components-requests/count",
+            "aggregation": 7
+          }
+        ],
+        "title": "Total Requests"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests\r\n| where timestamp {TimeRange}\r\n| summarize AvgDuration = avg(duration)\r\n| extend AvgDurationMs = round(AvgDuration, 2)\r\n| project AvgDurationMs",
+        "size": 3,
+        "title": "Average Response Time (ms)",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "card",
+        "tileSettings": {
+          "showBorder": false
+        }
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests\r\n| where timestamp {TimeRange}\r\n| summarize Total = count(), Failed = countif(success == false)\r\n| extend ErrorRate = round((Failed * 100.0) / Total, 2)\r\n| project ErrorRate",
+        "size": 3,
+        "title": "Error Rate (%)",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "card",
+        "tileSettings": {
+          "showBorder": false
+        }
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "exceptions\r\n| where timestamp {TimeRange}\r\n| summarize ExceptionCount = count()\r\n| project ExceptionCount",
+        "size": 3,
+        "title": "Total Exceptions",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "card",
+        "tileSettings": {
+          "showBorder": false
+        }
+      }
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Performance Trends"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests\r\n| where timestamp {TimeRange}\r\n| summarize AvgDuration = avg(duration) by bin(timestamp, 5m)\r\n| render timechart",
+        "size": 0,
+        "title": "Average Response Time Over Time",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests\r\n| where timestamp {TimeRange}\r\n| summarize RequestCount = count() by bin(timestamp, 5m)\r\n| render timechart",
+        "size": 0,
+        "title": "Request Rate (requests per 5 minutes)",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart"
+      }
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Business Metrics"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customMetrics\r\n| where name == \"WebhookProcessingTime\"\r\n| where timestamp {TimeRange}\r\n| extend webhookType = tostring(customDimensions.webhookType)\r\n| summarize Count = count() by webhookType\r\n| render piechart",
+        "size": 0,
+        "title": "Webhooks Processed by Type",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "piechart"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\r\n| where name == \"AlertNotificationSent\"\r\n| where timestamp {TimeRange}\r\n| extend alertType = tostring(customDimensions.alertType)\r\n| summarize Count = count() by alertType\r\n| render piechart",
+        "size": 0,
+        "title": "Alert Notifications by Type",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "piechart"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customEvents\r\n| where name == \"AlertNotificationSent\"\r\n| where timestamp {TimeRange}\r\n| extend \r\n    alertType = tostring(customDimensions.alertType),\r\n    success = tostring(customDimensions.success)\r\n| summarize \r\n    Total = count(),\r\n    Successful = countif(success == \"true\")\r\n    by alertType\r\n| extend SuccessRate = round((Successful * 100.0) / Total, 2)\r\n| project AlertType = alertType, Total, Successful, SuccessRate\r\n| order by Total desc",
+        "size": 0,
+        "title": "Notification Success Rate by Alert Type",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "customMetrics\r\n| where name == \"DeploymentApprovalTime\"\r\n| where timestamp {TimeRange}\r\n| extend \r\n    environment = tostring(customDimensions.environment),\r\n    outcome = tostring(customDimensions.outcome)\r\n| summarize Count = count() by outcome\r\n| render piechart",
+        "size": 0,
+        "title": "Deployment Approvals by Outcome",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "piechart"
+      }
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Dependencies and External Services"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "dependencies\r\n| where timestamp {TimeRange}\r\n| summarize \r\n    Total = count(),\r\n    Failed = countif(success == false)\r\n    by target\r\n| extend FailureRate = round((Failed * 100.0) / Total, 2)\r\n| project Target = target, Total, Failed, FailureRate\r\n| order by FailureRate desc",
+        "size": 0,
+        "title": "Dependency Success Rates",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "dependencies\r\n| where target == \"api.github.com\"\r\n| where timestamp {TimeRange}\r\n| summarize \r\n    AvgDuration = avg(duration),\r\n    P95Duration = percentile(duration, 95),\r\n    Count = count()\r\n    by name\r\n| project Operation = name, AvgDurationMs = round(AvgDuration, 2), P95DurationMs = round(P95Duration, 2), CallCount = Count\r\n| order by AvgDurationMs desc\r\n| take 10",
+        "size": 0,
+        "title": "Top 10 Slowest GitHub API Calls",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "dependencies\r\n| where timestamp {TimeRange}\r\n| summarize AvgDuration = avg(duration) by target, bin(timestamp, 15m)\r\n| render timechart",
+        "size": 0,
+        "title": "Dependency Response Times Over Time",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart"
+      }
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Errors and Exceptions"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "exceptions\r\n| where timestamp {TimeRange}\r\n| summarize Count = count() by type, outerMessage\r\n| order by Count desc\r\n| take 10",
+        "size": 0,
+        "title": "Top 10 Exceptions",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "table"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests\r\n| where timestamp {TimeRange} and success == false\r\n| summarize Count = count() by resultCode\r\n| render piechart",
+        "size": 0,
+        "title": "Failed Requests by Status Code",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "piechart"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests\r\n| where timestamp {TimeRange}\r\n| summarize \r\n    Total = count(),\r\n    Failed = countif(success == false)\r\n    by bin(timestamp, 15m)\r\n| extend ErrorRate = (Failed * 100.0) / Total\r\n| render timechart",
+        "size": 0,
+        "title": "Error Rate Trend",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart"
+      }
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Security Metrics"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "requests\r\n| where timestamp {TimeRange}\r\n| where resultCode == 401\r\n| summarize Count = count() by bin(timestamp, 15m)\r\n| render timechart",
+        "size": 0,
+        "title": "Failed Authentication Attempts (401)",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "dependencies\r\n| where timestamp {TimeRange}\r\n| where target == \"api.github.com\"\r\n| where resultCode == 429\r\n| summarize Count = count() by bin(timestamp, 1h)\r\n| render timechart",
+        "size": 0,
+        "title": "GitHub API Rate Limit Hits (429)",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "timechart"
+      }
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Most Active Repositories"
+      }
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union customEvents, customMetrics\r\n| where timestamp {TimeRange}\r\n| extend repository = tostring(customDimensions.repository)\r\n| where isnotempty(repository)\r\n| summarize ActivityCount = count() by repository\r\n| order by ActivityCount desc\r\n| take 15",
+        "size": 0,
+        "title": "Top 15 Most Active Repositories",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "visualization": "barchart"
+      }
+    }
+  ],
+  "fallbackResourceIds": [],
+  "fromTemplateId": "chatops-operational-dashboard"
+}
