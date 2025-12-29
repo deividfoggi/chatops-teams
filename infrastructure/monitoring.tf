@@ -230,7 +230,7 @@ resource "azurerm_application_insights_standard_web_test" "chatops_australiaeast
   frequency     = 300
   timeout       = 30
   enabled       = true
-  geo_locations = ["apac-au-syd-edge"] # Australia East
+  geo_locations = ["emea-au-syd-edge"] # Australia East
 
   request {
     url       = "https://chatops-app-${var.environment}.azurewebsites.net/health"
