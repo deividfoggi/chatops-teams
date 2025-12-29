@@ -8,9 +8,15 @@
    ```bash
    az webapp identity show --resource-group rg-chatops-prod --name chatops-app-service
    ```
+   Note the `principalId` from the output.
+
 2. Verify RBAC role assignment:
    ```bash
-   az role assignment list --scope $KV_ID --assignee [managed-identity-principal-id]
+   # First, get your Key Vault resource ID
+   export KV_ID=$(az keyvault show --name <your-keyvault-name> --query id --output tsv)
+   
+   # Then check role assignments using the principal ID from step 1
+   az role assignment list --scope $KV_ID --assignee <principal-id-from-step-1>
    ```
 3. Verify Key Vault reference syntax in App Settings
 

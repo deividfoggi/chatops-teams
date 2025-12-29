@@ -18,6 +18,11 @@ Use in App Service Application Settings:
 GITHUB_WEBHOOK_SECRET=@Microsoft.KeyVault(SecretUri=https://chatops-kv-xxxx.vault.azure.net/secrets/github-webhook-secret/)
 ```
 
+**Note:** Replace `chatops-kv-xxxx` with your actual Key Vault name. You can find your Key Vault URL by running:
+```bash
+az keyvault show --name <your-keyvault-name> --query properties.vaultUri --output tsv
+```
+
 ## Secret Access from Code
 ```javascript
 const { DefaultAzureCredential } = require('@azure/identity');

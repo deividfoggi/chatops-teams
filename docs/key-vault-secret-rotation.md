@@ -11,7 +11,9 @@
 1. Navigate to Azure Portal → App Registrations
 2. Generate new client secret
 3. Update Key Vault: `az keyvault secret set --vault-name $KV_NAME --name bot-app-password --value "new-password"`
-4. Restart App Service (if not using Key Vault references)
+4. Restart App Service:
+   - **If using Key Vault references**: Secrets are automatically refreshed, but restart is recommended for immediate effect
+   - **If not using Key Vault references**: Restart is required to load new values
 5. Verify: Send test message in Teams
 
 ## Rotation Schedule
