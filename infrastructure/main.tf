@@ -25,6 +25,10 @@ terraform {
 
 provider "azurerm" {
   features {}
+  
+  # Configure storage account data plane to use Entra ID authentication
+  # Required when storage accounts have shared_access_key_enabled = false
+  storage_use_azuread = true
 }
 
 data "azurerm_client_config" "current" {}
