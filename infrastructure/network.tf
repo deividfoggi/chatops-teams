@@ -170,6 +170,8 @@ resource "azurerm_subnet" "app_subnet" {
   virtual_network_name = azurerm_virtual_network.chatops_vnet.name
   address_prefixes     = ["10.0.1.0/24"]
 
+  service_endpoints = ["Microsoft.KeyVault"]
+
   delegation {
     name = "app-service-delegation"
 
@@ -282,6 +284,9 @@ resource "azurerm_storage_account" "nsg_flow_logs" {
   account_tier             = "Standard"
   account_replication_type = "LRS"
   min_tls_version          = "TLS1_2"
+  
+  # Disable shared key access (using managed identity instead)
+  shared_access_key_enabled = false
 
   tags = {
     Environment = var.environment
@@ -289,6 +294,38 @@ resource "azurerm_storage_account" "nsg_flow_logs" {
     Purpose     = "NSG Flow Logs"
     ManagedBy   = "Terraform"
   }
+}
+
+# -----------------------------------------------------------------------------
+# Managed Identity for NSG Flow Logs
+# -----------------------------------------------------------------------------
+# This managed identity is used by Network Watcher to write flow logs to
+# the storage account without requiring shared access keys.
+# -----------------------------------------------------------------------------
+
+resource "azurerm_user_assigned_identity" "nsg_flow_logs" {
+  name                = "nsg-flow-logs-identity"
+  location            = azurerm_resource_group.chatops.location
+  resource_group_name = azurerm_resource_group.chatops.name
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    ManagedBy   = "Terraform"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Role Assignment for Flow Logs Storage Access
+# -----------------------------------------------------------------------------
+# Grants the managed identity Storage Blob Data Contributor permissions
+# to write flow logs to the storage account.
+# -----------------------------------------------------------------------------
+
+resource "azurerm_role_assignment" "flow_logs_storage" {
+  scope                = azurerm_storage_account.nsg_flow_logs.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.nsg_flow_logs.principal_id
 }
 
 # -----------------------------------------------------------------------------
@@ -321,6 +358,14 @@ resource "azurerm_network_watcher_flow_log" "app_nsg_flow_log" {
   enabled                   = true
   version                   = 2
 
+  # Use managed identity for storage access
+  identity {
+    type = "UserAssigned"
+    identity_ids = [
+      azurerm_user_assigned_identity.nsg_flow_logs.id
+    ]
+  }
+
   retention_policy {
     enabled = true
     days    = 90
@@ -333,4 +378,8 @@ resource "azurerm_network_watcher_flow_log" "app_nsg_flow_log" {
     workspace_resource_id = azurerm_log_analytics_workspace.chatops.id
     interval_in_minutes   = 10
   }
+
+  depends_on = [
+    azurerm_role_assignment.flow_logs_storage
+  ]
 }

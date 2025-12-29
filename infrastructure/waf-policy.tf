@@ -36,8 +36,13 @@ resource "azurerm_web_application_firewall_policy" "chatops" {
     rule_type = "RateLimitRule"
     action    = "Block"
 
-    rate_limit_duration  = "OneMin"
-    rate_limit_threshold = 100
+    rate_limit_duration             = "OneMin"
+    rate_limit_threshold            = 100
+    group_by_user_session {
+      group_by_variables {
+        variable_name = "ClientAddr"
+      }
+    }
 
     match_conditions {
       match_variables {
