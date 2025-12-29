@@ -34,22 +34,9 @@ resource "azurerm_application_insights" "chatops" {
 # Azure Key Vault for secure access by applications.
 #
 # Note: Previously commented out pending Key Vault deployment (Task 6.4.1).
-# Now enabled as Key Vault is deployed and available.
+# This resource is now defined in keyvault-secrets.tf to centralize all
+# secret management in one location.
 # =============================================================================
-
-resource "azurerm_key_vault_secret" "appinsights_connection_string" {
-  name         = "appinsights-connection-string"
-  value        = azurerm_application_insights.chatops.connection_string
-  key_vault_id = azurerm_key_vault.chatops.id
-
-  tags = {
-    Environment = var.environment
-    Application = "ChatOps"
-    CostCenter  = var.cost_center
-    Owner       = var.owner
-    ManagedBy   = "Terraform"
-  }
-}
 
 # =============================================================================
 # Application Insights Availability Tests
