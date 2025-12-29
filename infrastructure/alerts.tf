@@ -216,7 +216,7 @@ resource "azurerm_monitor_scheduled_query_rules_alert_v2" "availability_test_fai
       | summarize FailedRegions = dcount(location)
     QUERY
 
-    time_aggregation_method = "Count"
+    time_aggregation_method = "Maximum"
     operator                = "GreaterThanOrEqual"
     threshold               = 2
 
