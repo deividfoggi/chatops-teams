@@ -25,6 +25,51 @@ The ChatOps Teams application uses Azure Key Vault to securely store and manage 
 - **Audit Logging**: All secret access is logged for security monitoring
 - **Secret Rotation**: Supports rotation without application restart
 
+### Initial Setup
+
+After deploying the infrastructure with Terraform, perform these post-deployment steps:
+
+1. **Set Secret Expiration Dates**: Terraform creates secrets without expiration dates to avoid state management issues. Set expiration dates manually:
+
+```bash
+# Get the Key Vault name
+KV_NAME=$(az keyvault list --resource-group rg-chatops-prod --query "[0].name" -o tsv)
+
+# Set expiration dates for secrets (365 days for stable items)
+az keyvault secret set-attributes --vault-name $KV_NAME \
+  --name appinsights-connection-string \
+  --expires "$(date -u -d '365 days' +%Y-%m-%dT%H:%M:%SZ)"
+
+az keyvault secret set-attributes --vault-name $KV_NAME \
+  --name github-app-id \
+  --expires "$(date -u -d '365 days' +%Y-%m-%dT%H:%M:%SZ)"
+
+az keyvault secret set-attributes --vault-name $KV_NAME \
+  --name bot-app-id \
+  --expires "$(date -u -d '365 days' +%Y-%m-%dT%H:%M:%SZ)"
+
+# Set expiration dates for credentials (90 days for security)
+az keyvault secret set-attributes --vault-name $KV_NAME \
+  --name github-webhook-secret \
+  --expires "$(date -u -d '90 days' +%Y-%m-%dT%H:%M:%SZ)"
+
+az keyvault secret set-attributes --vault-name $KV_NAME \
+  --name github-app-private-key \
+  --expires "$(date -u -d '90 days' +%Y-%m-%dT%H:%M:%SZ)"
+
+az keyvault secret set-attributes --vault-name $KV_NAME \
+  --name bot-app-password \
+  --expires "$(date -u -d '90 days' +%Y-%m-%dT%H:%M:%SZ)"
+
+az keyvault secret set-attributes --vault-name $KV_NAME \
+  --name entra-client-secret \
+  --expires "$(date -u -d '90 days' +%Y-%m-%dT%H:%M:%SZ)"
+```
+
+2. **Replace Placeholder Values**: Update secrets with actual production values
+3. **Verify RBAC Permissions**: Ensure all role assignments are correctly configured
+4. **Test Secret Access**: Verify applications can retrieve secrets using managed identities
+
 ## Key Vault Architecture
 
 ### Key Vault Configuration

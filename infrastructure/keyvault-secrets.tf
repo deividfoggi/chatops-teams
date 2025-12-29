@@ -8,6 +8,10 @@
 # Security Note: These Terraform resources create secrets with placeholder
 # values. In production, secrets should be rotated and updated through secure
 # CI/CD pipelines or manual updates via Azure Portal/CLI.
+#
+# Expiration Dates: Secrets are created without expiration dates initially.
+# Set expiration dates after deployment using Azure CLI or Portal to avoid
+# Terraform state management issues with timestamp() function.
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -23,8 +27,9 @@ resource "azurerm_key_vault_secret" "appinsights_connection_string" {
   value        = azurerm_application_insights.chatops.connection_string
   key_vault_id = azurerm_key_vault.chatops.id
 
-  # Set expiration to 1 year from creation (recommended practice)
-  expiration_date = timeadd(timestamp(), "8760h") # 365 days
+  # Note: Expiration date should be set after deployment using Azure CLI/Portal
+  # to avoid Terraform state issues. Recommended: 365 days for connection strings.
+  # Example: az keyvault secret set-attributes --vault-name <vault> --name appinsights-connection-string --expires "$(date -u -d '365 days' +%Y-%m-%dT%H:%M:%SZ)"
 
   tags = {
     Environment = var.environment
@@ -34,10 +39,9 @@ resource "azurerm_key_vault_secret" "appinsights_connection_string" {
     ManagedBy   = "Terraform"
   }
 
-  # Ensure Key Vault RBAC roles are assigned before creating secrets
+  # Depend on Key Vault resource to ensure vault exists before creating secrets
   depends_on = [
-    azurerm_role_assignment.kv_admin,
-    azurerm_role_assignment.kv_secrets_officer
+    azurerm_key_vault.chatops
   ]
 }
 
@@ -49,15 +53,13 @@ resource "azurerm_key_vault_secret" "appinsights_connection_string" {
 #
 # Production Update: Generate a secure random string (32+ characters) and
 # configure it in GitHub webhook settings.
+# Recommended expiration: 90 days
 # -----------------------------------------------------------------------------
 
 resource "azurerm_key_vault_secret" "github_webhook_secret" {
   name         = "github-webhook-secret"
   value        = "PLACEHOLDER-REPLACE-IN-PRODUCTION"
   key_vault_id = azurerm_key_vault.chatops.id
-
-  # Set expiration to 90 days (recommended rotation period)
-  expiration_date = timeadd(timestamp(), "2160h") # 90 days
 
   tags = {
     Environment = var.environment
@@ -69,8 +71,7 @@ resource "azurerm_key_vault_secret" "github_webhook_secret" {
   }
 
   depends_on = [
-    azurerm_role_assignment.kv_admin,
-    azurerm_role_assignment.kv_secrets_officer
+    azurerm_key_vault.chatops
   ]
 }
 
@@ -81,15 +82,13 @@ resource "azurerm_key_vault_secret" "github_webhook_secret" {
 #
 # Production Update: Replace with the actual GitHub App ID from GitHub App
 # settings page.
+# Recommended expiration: 365 days
 # -----------------------------------------------------------------------------
 
 resource "azurerm_key_vault_secret" "github_app_id" {
   name         = "github-app-id"
   value        = "000000"
   key_vault_id = azurerm_key_vault.chatops.id
-
-  # App IDs typically don't expire, but set a long expiration for monitoring
-  expiration_date = timeadd(timestamp(), "8760h") # 365 days
 
   tags = {
     Environment = var.environment
@@ -101,28 +100,27 @@ resource "azurerm_key_vault_secret" "github_app_id" {
   }
 
   depends_on = [
-    azurerm_role_assignment.kv_admin,
-    azurerm_role_assignment.kv_secrets_officer
+    azurerm_key_vault.chatops
   ]
 }
 
 # -----------------------------------------------------------------------------
 # GitHub App Private Key
 # -----------------------------------------------------------------------------
-# The private key (PEM format) for authenticating as the GitHub App.
+# The private key for authenticating as the GitHub App.
 #
 # Production Update: Replace with the actual private key downloaded from
-# GitHub App settings. The key should be in PEM format as a single-line
-# string with newlines replaced by \n.
+# GitHub App settings. GitHub Apps support both RSA and PKCS#8 formats:
+#   - RSA format: -----BEGIN RSA PRIVATE KEY-----
+#   - PKCS#8 format: -----BEGIN PRIVATE KEY-----
+# The key should be stored as a single-line string with newlines replaced by \n.
+# Recommended expiration: 90 days
 # -----------------------------------------------------------------------------
 
 resource "azurerm_key_vault_secret" "github_app_private_key" {
   name         = "github-app-private-key"
-  value        = "-----BEGIN RSA PRIVATE KEY-----\nPLACEHOLDER\n-----END RSA PRIVATE KEY-----"
+  value        = "-----BEGIN PRIVATE KEY-----\nPLACEHOLDER\n-----END PRIVATE KEY-----"
   key_vault_id = azurerm_key_vault.chatops.id
-
-  # Private keys should be rotated every 90 days
-  expiration_date = timeadd(timestamp(), "2160h") # 90 days
 
   tags = {
     Environment = var.environment
@@ -134,8 +132,7 @@ resource "azurerm_key_vault_secret" "github_app_private_key" {
   }
 
   depends_on = [
-    azurerm_role_assignment.kv_admin,
-    azurerm_role_assignment.kv_secrets_officer
+    azurerm_key_vault.chatops
   ]
 }
 
@@ -146,15 +143,13 @@ resource "azurerm_key_vault_secret" "github_app_private_key" {
 #
 # Production Update: Replace with the actual Bot App ID from Azure Bot
 # Service registration.
+# Recommended expiration: 365 days
 # -----------------------------------------------------------------------------
 
 resource "azurerm_key_vault_secret" "bot_app_id" {
   name         = "bot-app-id"
   value        = "00000000-0000-0000-0000-000000000000"
   key_vault_id = azurerm_key_vault.chatops.id
-
-  # App IDs typically don't expire, but set a long expiration for monitoring
-  expiration_date = timeadd(timestamp(), "8760h") # 365 days
 
   tags = {
     Environment = var.environment
@@ -166,8 +161,7 @@ resource "azurerm_key_vault_secret" "bot_app_id" {
   }
 
   depends_on = [
-    azurerm_role_assignment.kv_admin,
-    azurerm_role_assignment.kv_secrets_officer
+    azurerm_key_vault.chatops
   ]
 }
 
@@ -178,15 +172,13 @@ resource "azurerm_key_vault_secret" "bot_app_id" {
 #
 # Production Update: Replace with the actual client secret generated in
 # Azure AD App Registration for the bot.
+# Recommended expiration: 90 days
 # -----------------------------------------------------------------------------
 
 resource "azurerm_key_vault_secret" "bot_app_password" {
   name         = "bot-app-password"
   value        = "PLACEHOLDER-REPLACE-IN-PRODUCTION"
   key_vault_id = azurerm_key_vault.chatops.id
-
-  # Client secrets should be rotated every 90 days
-  expiration_date = timeadd(timestamp(), "2160h") # 90 days
 
   tags = {
     Environment = var.environment
@@ -198,8 +190,7 @@ resource "azurerm_key_vault_secret" "bot_app_password" {
   }
 
   depends_on = [
-    azurerm_role_assignment.kv_admin,
-    azurerm_role_assignment.kv_secrets_officer
+    azurerm_key_vault.chatops
   ]
 }
 
@@ -210,15 +201,13 @@ resource "azurerm_key_vault_secret" "bot_app_password" {
 #
 # Production Update: Replace with the actual client secret from Azure AD
 # App Registration used for SSO/authentication.
+# Recommended expiration: 90 days
 # -----------------------------------------------------------------------------
 
 resource "azurerm_key_vault_secret" "entra_client_secret" {
   name         = "entra-client-secret"
   value        = "PLACEHOLDER-REPLACE-IN-PRODUCTION"
   key_vault_id = azurerm_key_vault.chatops.id
-
-  # Client secrets should be rotated every 90 days
-  expiration_date = timeadd(timestamp(), "2160h") # 90 days
 
   tags = {
     Environment = var.environment
@@ -230,7 +219,6 @@ resource "azurerm_key_vault_secret" "entra_client_secret" {
   }
 
   depends_on = [
-    azurerm_role_assignment.kv_admin,
-    azurerm_role_assignment.kv_secrets_officer
+    azurerm_key_vault.chatops
   ]
 }
