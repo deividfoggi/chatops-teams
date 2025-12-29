@@ -72,25 +72,24 @@ resource "azurerm_application_insights_standard_web_test" "chatops_eastus" {
   location                = "eastus"
   resource_group_name     = azurerm_resource_group.chatops.name
   application_insights_id = azurerm_application_insights.chatops.id
-  
-  frequency               = 300 # 5 minutes
-  timeout                 = 30  # 30 seconds
-  enabled                 = true
-  geo_locations          = ["us-va-ash-azr"]  # East US
+
+  frequency     = 300 # 5 minutes
+  timeout       = 30  # 30 seconds
+  enabled       = true
+  geo_locations = ["us-va-ash-azr"] # East US
 
   request {
-    url                   = "https://chatops-app-${var.environment}.azurewebsites.net/health"
-    http_verb             = "GET"
-    parse_dependent_requests = false
+    url       = "https://chatops-app-${var.environment}.azurewebsites.net/health"
+    http_verb = "GET"
   }
 
   validation_rules {
-    ssl_cert_remaining_lifetime = 7  # Alert if SSL cert expires in 7 days
+    ssl_cert_remaining_lifetime = 7 # Alert if SSL cert expires in 7 days
     ssl_check_enabled           = true
 
     expected_status_code = 200
     content {
-      content_match = "healthy"
+      content_match      = "healthy"
       pass_if_text_found = true
     }
   }
@@ -114,16 +113,15 @@ resource "azurerm_application_insights_standard_web_test" "chatops_westus" {
   location                = "westus"
   resource_group_name     = azurerm_resource_group.chatops.name
   application_insights_id = azurerm_application_insights.chatops.id
-  
-  frequency               = 300
-  timeout                 = 30
-  enabled                 = true
-  geo_locations          = ["us-ca-sjc-azr"]  # West US
+
+  frequency     = 300
+  timeout       = 30
+  enabled       = true
+  geo_locations = ["us-ca-sjc-azr"] # West US
 
   request {
-    url                   = "https://chatops-app-${var.environment}.azurewebsites.net/health"
-    http_verb             = "GET"
-    parse_dependent_requests = false
+    url       = "https://chatops-app-${var.environment}.azurewebsites.net/health"
+    http_verb = "GET"
   }
 
   validation_rules {
@@ -132,7 +130,7 @@ resource "azurerm_application_insights_standard_web_test" "chatops_westus" {
 
     expected_status_code = 200
     content {
-      content_match = "healthy"
+      content_match      = "healthy"
       pass_if_text_found = true
     }
   }
@@ -156,16 +154,15 @@ resource "azurerm_application_insights_standard_web_test" "chatops_northeurope" 
   location                = "northeurope"
   resource_group_name     = azurerm_resource_group.chatops.name
   application_insights_id = azurerm_application_insights.chatops.id
-  
-  frequency               = 300
-  timeout                 = 30
-  enabled                 = true
-  geo_locations          = ["emea-nl-ams-azr"]  # North Europe
+
+  frequency     = 300
+  timeout       = 30
+  enabled       = true
+  geo_locations = ["emea-nl-ams-azr"] # North Europe
 
   request {
-    url                   = "https://chatops-app-${var.environment}.azurewebsites.net/health"
-    http_verb             = "GET"
-    parse_dependent_requests = false
+    url       = "https://chatops-app-${var.environment}.azurewebsites.net/health"
+    http_verb = "GET"
   }
 
   validation_rules {
@@ -174,7 +171,7 @@ resource "azurerm_application_insights_standard_web_test" "chatops_northeurope" 
 
     expected_status_code = 200
     content {
-      content_match = "healthy"
+      content_match      = "healthy"
       pass_if_text_found = true
     }
   }
@@ -198,16 +195,15 @@ resource "azurerm_application_insights_standard_web_test" "chatops_southeastasia
   location                = "southeastasia"
   resource_group_name     = azurerm_resource_group.chatops.name
   application_insights_id = azurerm_application_insights.chatops.id
-  
-  frequency               = 300
-  timeout                 = 30
-  enabled                 = true
-  geo_locations          = ["apac-sg-sin-azr"]  # Southeast Asia
+
+  frequency     = 300
+  timeout       = 30
+  enabled       = true
+  geo_locations = ["apac-sg-sin-azr"] # Southeast Asia
 
   request {
-    url                   = "https://chatops-app-${var.environment}.azurewebsites.net/health"
-    http_verb             = "GET"
-    parse_dependent_requests = false
+    url       = "https://chatops-app-${var.environment}.azurewebsites.net/health"
+    http_verb = "GET"
   }
 
   validation_rules {
@@ -216,7 +212,7 @@ resource "azurerm_application_insights_standard_web_test" "chatops_southeastasia
 
     expected_status_code = 200
     content {
-      content_match = "healthy"
+      content_match      = "healthy"
       pass_if_text_found = true
     }
   }
@@ -240,16 +236,15 @@ resource "azurerm_application_insights_standard_web_test" "chatops_australiaeast
   location                = "australiaeast"
   resource_group_name     = azurerm_resource_group.chatops.name
   application_insights_id = azurerm_application_insights.chatops.id
-  
-  frequency               = 300
-  timeout                 = 30
-  enabled                 = true
-  geo_locations          = ["apac-au-syd-edge"]  # Australia East
+
+  frequency     = 300
+  timeout       = 30
+  enabled       = true
+  geo_locations = ["apac-au-syd-edge"] # Australia East
 
   request {
-    url                   = "https://chatops-app-${var.environment}.azurewebsites.net/health"
-    http_verb             = "GET"
-    parse_dependent_requests = false
+    url       = "https://chatops-app-${var.environment}.azurewebsites.net/health"
+    http_verb = "GET"
   }
 
   validation_rules {
@@ -258,7 +253,7 @@ resource "azurerm_application_insights_standard_web_test" "chatops_australiaeast
 
     expected_status_code = 200
     content {
-      content_match = "healthy"
+      content_match      = "healthy"
       pass_if_text_found = true
     }
   }
