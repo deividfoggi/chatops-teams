@@ -39,16 +39,6 @@ resource "azurerm_web_application_firewall_policy" "chatops" {
     rate_limit_duration     = "OneMin"
     rate_limit_threshold    = 100
     group_rate_limit_by_user_session = false
-
-    match_conditions {
-      match_variables {
-        variable_name = "RemoteAddr"
-      }
-
-      operator           = "IPMatch"
-      negation_condition = false
-      match_values       = ["0.0.0.0/0", "::/0"]
-    }
   }
 
   # =============================================================================
