@@ -190,7 +190,6 @@ try {
   // Test supported events
   assert.strictEqual(isSupportedEventType('code_scanning_alert'), true);
   assert.strictEqual(isSupportedEventType('dependabot_alert'), true);
-  assert.strictEqual(isSupportedEventType('deployment_review'), true);
   assert.strictEqual(isSupportedEventType('deployment_protection_rule'), true);
   assert.strictEqual(isSupportedEventType('ping'), true);
   

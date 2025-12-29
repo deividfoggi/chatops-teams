@@ -13,9 +13,24 @@ const { routeWebhookEvent } = require('./webhookHandlers');
 function createWebhookTestServer(port = 3978, webhookSecret = 'test-secret') {
   const app = express();
 
-  // Middleware for webhook endpoints - preserve raw body for signature validation
-  app.use('/api/webhooks/github', express.raw({ type: 'application/json' }));
-  app.use(express.json());
+  // Parse JSON for non-webhook endpoints
+  app.use((req, res, next) => {
+    if (req.path === '/api/webhooks/github' && req.method === 'POST') {
+      // Skip JSON parsing for webhook POST - will use raw middleware
+      next();
+    } else {
+      express.json()(req, res, next);
+    }
+  });
+
+  // Middleware for webhook endpoint - preserve raw body for signature validation
+  app.use('/api/webhooks/github', (req, res, next) => {
+    if (req.method === 'POST') {
+      express.raw({ type: 'application/json' })(req, res, next);
+    } else {
+      next();
+    }
+  });
 
   // Health check
   app.get('/health', (req, res) => {

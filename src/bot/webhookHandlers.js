@@ -204,7 +204,6 @@ async function routeWebhookEvent(eventType, payload, telemetryClient) {
         break;
 
       case 'deployment_protection_rule':
-      case 'deployment_review':
         result = await handleDeploymentReview(payload, telemetryClient);
         break;
 
