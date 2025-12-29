@@ -34,6 +34,25 @@ output "vnet_address_space" {
 }
 
 # =============================================================================
+# Gateway Subnet Outputs
+# =============================================================================
+
+output "gateway_subnet_id" {
+  description = "The resource ID of the gateway subnet"
+  value       = azurerm_subnet.gateway_subnet.id
+}
+
+output "gateway_subnet_name" {
+  description = "The name of the gateway subnet"
+  value       = azurerm_subnet.gateway_subnet.name
+}
+
+output "gateway_subnet_address_prefixes" {
+  description = "The address prefixes of the gateway subnet"
+  value       = azurerm_subnet.gateway_subnet.address_prefixes
+}
+
+# =============================================================================
 # App Subnet Outputs
 # =============================================================================
 
@@ -55,6 +74,16 @@ output "app_subnet_address_prefixes" {
 # =============================================================================
 # Network Security Group Outputs
 # =============================================================================
+
+output "gateway_nsg_id" {
+  description = "The resource ID of the gateway network security group"
+  value       = azurerm_network_security_group.gateway_nsg.id
+}
+
+output "gateway_nsg_name" {
+  description = "The name of the gateway network security group"
+  value       = azurerm_network_security_group.gateway_nsg.name
+}
 
 output "app_nsg_id" {
   description = "The resource ID of the app network security group"
@@ -109,4 +138,42 @@ output "key_vault_name" {
 output "key_vault_uri" {
   description = "The URI of the Key Vault"
   value       = azurerm_key_vault.chatops.vault_uri
+}
+
+# =============================================================================
+# Key Vault RBAC Role Assignment Outputs
+# =============================================================================
+
+output "key_vault_admin_role_assignment_id" {
+  description = "The resource ID of the Key Vault Administrator role assignment (null if not created)"
+  value       = length(azurerm_role_assignment.kv_admin) > 0 ? azurerm_role_assignment.kv_admin[0].id : null
+}
+
+output "key_vault_secrets_officer_role_assignment_id" {
+  description = "The resource ID of the Key Vault Secrets Officer role assignment (null if not created)"
+  value       = length(azurerm_role_assignment.kv_secrets_officer) > 0 ? azurerm_role_assignment.kv_secrets_officer[0].id : null
+}
+
+# =============================================================================
+# Key Vault Alerting Outputs
+# =============================================================================
+
+output "security_alerts_action_group_id" {
+  description = "The resource ID of the security alerts action group"
+  value       = azurerm_monitor_action_group.security_alerts.id
+}
+
+output "kv_failed_auth_alert_id" {
+  description = "The resource ID of the Key Vault failed authentication alert"
+  value       = azurerm_monitor_scheduled_query_rules_alert_v2.kv_failed_auth.id
+}
+
+output "kv_secret_access_anomaly_alert_id" {
+  description = "The resource ID of the Key Vault secret access anomaly alert"
+  value       = azurerm_monitor_scheduled_query_rules_alert_v2.kv_secret_access_anomaly.id
+}
+
+output "kv_secret_expiration_alert_id" {
+  description = "The resource ID of the Key Vault secret expiration alert"
+  value       = azurerm_monitor_scheduled_query_rules_alert_v2.kv_secret_expiration.id
 }

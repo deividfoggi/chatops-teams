@@ -30,7 +30,7 @@ provider "azurerm" {
 data "azurerm_client_config" "current" {}
 
 resource "azurerm_resource_group" "chatops" {
-  name     = "rg-chatops-prod"
+  name     = "rg-chatops-${var.environment}"
   location = "eastus"
 
   tags = {

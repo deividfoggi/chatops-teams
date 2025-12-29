@@ -1,0 +1,31 @@
+{
+  "name": "chatops-teams",
+  "version": "1.0.0",
+  "description": "ChatOps Teams Integration for GitHub security alerts and deployment approvals",
+  "main": "index.js",
+  "scripts": {
+    "start": "node bot/server.js",
+    "start:dev": "NODE_ENV=development node bot/server.js",
+    "test": "node bot/test.js",
+    "test:unit": "node bot/test.js",
+    "lint": "echo \"No linting configured yet\""
+  },
+  "keywords": [
+    "chatops",
+    "teams",
+    "github",
+    "azure",
+    "application-insights"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "applicationinsights": "^2.9.5",
+    "uuid": "^9.0.1",
+    "botbuilder": "^4.20.0",
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

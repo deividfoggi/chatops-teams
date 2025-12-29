@@ -27,3 +27,14 @@ Thumbs.db
 *.tfvars
 !example.tfvars
 secrets/
+
+# Node.js
+node_modules/
+npm-debug.log*
+.npm
+package-lock.json
+
+# Build outputs
+dist/
+build/
+*.log

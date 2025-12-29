@@ -1,258 +1,342 @@
-# ChatOps Teams Network Architecture
+# ChatOps Teams - Network Architecture Documentation
 
-This document provides comprehensive network architecture documentation for the ChatOps Teams application deployed on Microsoft Azure.
+## Overview
 
-## Table of Contents
+This document describes the network architecture for the ChatOps Teams application deployed on Microsoft Azure. The design follows Azure Well-Architected Framework principles with a focus on security, scalability, and cost optimization.
 
-- [Virtual Network Overview](#virtual-network-overview)
-- [Subnet Allocation](#subnet-allocation)
-- [Network Security Groups](#network-security-groups)
-- [Traffic Flow](#traffic-flow)
-- [Disaster Recovery](#disaster-recovery)
-- [Related Documentation](#related-documentation)
+## Network Topology
 
----
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Azure Cloud (East US)                        │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐ │
+│  │          Resource Group: rg-chatops-prod                  │ │
+│  │                                                           │ │
+│  │  ┌─────────────────────────────────────────────────────┐ │ │
+│  │  │   Virtual Network: chatops-vnet (10.0.0.0/16)       │ │ │
+│  │  │                                                     │ │ │
+│  │  │  ┌───────────────────────────────────────────────┐ │ │ │
+│  │  │  │  Gateway Subnet: 10.0.2.0/24                  │ │ │ │
+│  │  │  │  ┌─────────────────────────────────────────┐  │ │ │ │
+│  │  │  │  │  Application Gateway (Future)            │  │ │ │ │
+│  │  │  │  │  - WAF Protection                        │  │ │ │ │
+│  │  │  │  │  - SSL/TLS Termination                   │  │ │ │ │
+│  │  │  │  │  - HTTPS:443 from Internet               │  │ │ │ │
+│  │  │  │  └─────────────────────────────────────────┘  │ │ │ │
+│  │  │  │  NSG: gateway-nsg                              │ │ │ │
+│  │  │  │  - Allow HTTPS (443) from Internet             │ │ │ │
+│  │  │  │  - Allow Gateway Manager (65200-65535)         │ │ │ │
+│  │  │  └───────────────────────────────────────────────┘ │ │ │
+│  │  │                          │                          │ │ │
+│  │  │                          │ HTTPS                    │ │ │
+│  │  │                          ▼                          │ │ │
+│  │  │  ┌───────────────────────────────────────────────┐ │ │ │
+│  │  │  │  App Subnet: 10.0.1.0/24                      │ │ │ │
+│  │  │  │  ┌─────────────────────────────────────────┐  │ │ │ │
+│  │  │  │  │  App Service with VNet Integration       │  │ │ │ │
+│  │  │  │  │  - Teams Bot Application                 │  │ │ │ │
+│  │  │  │  │  - Private networking                    │  │ │ │ │
+│  │  │  │  └─────────────────────────────────────────┘  │ │ │ │
+│  │  │  │  NSG: app-nsg                                  │ │ │ │
+│  │  │  │  - Allow inbound from Gateway subnet           │ │ │ │
+│  │  │  │  - Allow outbound HTTPS to Internet            │ │ │ │
+│  │  │  │  - Deny all other traffic (Priority 4096)      │ │ │ │
+│  │  │  └───────────────────────────────────────────────┘ │ │ │
+│  │  │                                                     │ │ │
+│  │  │  Reserved for Future: 10.0.3.0 - 10.0.255.0        │ │ │
+│  │  └─────────────────────────────────────────────────────┘ │ │
+│  └───────────────────────────────────────────────────────────┘ │
+│                                                                 │
+│  Monitoring & Logging:                                          │
+│  - Log Analytics Workspace (chatops-loganalytics)               │
+│  - NSG Flow Logs (90-day retention)                             │
+│  - Network Watcher Traffic Analytics                            │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-## Virtual Network Overview
+## IP Address Allocation Strategy
 
-The ChatOps Teams application uses a single Virtual Network (VNet) deployed in Azure East US region with a `/16` address space providing 65,536 IP addresses.
+### Address Space Overview
 
-### VNet Configuration
+| CIDR Block | Total IPs | Purpose | Status |
+|------------|-----------|---------|--------|
+| 10.0.0.0/16 | 65,536 | Virtual Network | Active |
 
-| Property | Value |
-|----------|-------|
-| **Name** | chatops-vnet |
-| **Region** | East US |
-| **Address Space** | 10.0.0.0/16 |
-| **Total IPs** | 65,536 |
-| **DDoS Protection** | Basic (included with Azure) |
+### Subnet Allocation
 
-### Address Space Design Rationale
+| Subnet Name | CIDR Block | Usable IPs | Purpose | Status |
+|-------------|------------|------------|---------|--------|
+| gateway-subnet | 10.0.2.0/24 | 251 | Application Gateway, VPN Gateway | Active |
+| app-subnet | 10.0.1.0/24 | 251 | App Service VNet Integration, Container Apps | Active |
+| **Reserved** | 10.0.3.0/24 | 251 | Database tier (Azure SQL, CosmosDB) | Reserved |
+| **Reserved** | 10.0.4.0/24 | 251 | Cache tier (Redis) | Reserved |
+| **Reserved** | 10.0.5.0/24 | 251 | Management/Bastion | Reserved |
+| **Reserved** | 10.0.6.0 - 10.0.255.0 | ~64,000 | Future expansion | Reserved |
 
-The `/16` address space was selected to:
-1. Provide sufficient capacity for current workloads
-2. Allow for future expansion without re-architecting
-3. Enable disaster recovery with non-overlapping ranges in secondary regions
-4. Support VNet peering with partner networks
+> **Note:** Azure reserves 5 IP addresses in each subnet:
+> - `.0`: Network address
+> - `.1`: Default gateway
+> - `.2`, `.3`: Azure DNS
+> - `.255`: Broadcast address
+>
+> Therefore, a /24 subnet provides 251 usable IP addresses (256 - 5).
 
----
+### IP Allocation Justification
 
-## Subnet Allocation
+**Why /16 for VNet?**
+- Provides 65,536 addresses for long-term growth
+- Supports multiple environments (dev, staging, prod) in future
+- Enables disaster recovery region with similar addressing scheme
+- Allows for hybrid connectivity (VPN, ExpressRoute) without re-architecture
 
-Azure reserves 5 IP addresses in each subnet (first 4 and last 1), reducing usable IPs from 256 to 251 per /24 subnet.
+**Why /24 for Subnets?**
+- 251 usable IPs sufficient for autoscaling workloads
+- App Service VNet integration: ~10-50 IPs typical
+- Application Gateway: 10-125 IPs depending on instance count
+- Balances granularity with efficient address usage
 
-### Current Subnet Configuration
+## Network Security
 
-| Subnet | CIDR | Usable IPs | Purpose | Status | Delegation |
-|--------|------|------------|---------|--------|------------|
-| app-subnet | 10.0.1.0/24 | 251 | App Service VNet integration | Deployed | Microsoft.Web/serverFarms |
-| gateway-subnet | 10.0.2.0/24 | 251 | Application Gateway | Deployed | None |
-| database-subnet | 10.0.3.0/24 | 251 | Azure SQL/PostgreSQL Private Endpoints | Reserved | None |
-| cache-subnet | 10.0.4.0/24 | 251 | Azure Cache for Redis | Reserved | None |
+### Network Security Groups (NSGs)
 
-### Future Expansion
+#### Gateway NSG (gateway-nsg)
 
-| CIDR Range | Available IPs | Status | Potential Use Cases |
-|------------|---------------|--------|---------------------|
-| 10.0.5.0 - 10.0.255.0 | ~64,000 | Available | AKS node pools, additional tiers, dev/staging environments |
+**Purpose:** Controls traffic to/from the gateway subnet hosting Application Gateway.
 
-### IP Address Allocation Guidelines
+| Rule Name | Priority | Direction | Action | Protocol | Source | Dest | Port | Description |
+|-----------|----------|-----------|--------|----------|--------|------|------|-------------|
+| AllowHTTPSInbound | 100 | Inbound | Allow | TCP | Internet | * | 443 | Public HTTPS access |
+| AllowGatewayManager | 110 | Inbound | Allow | TCP | GatewayManager | * | 65200-65535 | Azure Gateway health probes |
 
-1. **Production Subnets**: 10.0.1.0 - 10.0.10.0/24
-2. **Development/Staging**: 10.0.20.0 - 10.0.30.0/24 (future)
-3. **Management**: 10.0.100.0/24 (future bastion, jump servers)
-4. **Reserved**: 10.0.200.0 - 10.0.255.0/24 (peering, expansion)
+**Rationale:**
+- Port 443: Required for public HTTPS traffic to the application
+- Ports 65200-65535: Required by Azure Application Gateway v2 for health monitoring and management
 
----
+#### App NSG (app-nsg)
 
-## Network Security Groups
+**Purpose:** Controls traffic to/from the app subnet hosting App Service workloads.
 
-Network Security Groups (NSGs) enforce security boundaries at the subnet level using a deny-by-default approach.
+| Rule Name | Priority | Direction | Action | Protocol | Source | Dest | Port | Description |
+|-----------|----------|-----------|--------|----------|--------|------|------|-------------|
+| AllowGatewayInbound | 100 | Inbound | Allow | TCP | 10.0.2.0/24 | * | 443 | Traffic from gateway only |
+| AllowInternetOutbound | 100 | Outbound | Allow | TCP | * | Internet | 443 | Outbound HTTPS |
+| DenyAllInbound | 4096 | Inbound | Deny | * | * | * | * | Default deny (lowest priority) |
 
-### App NSG (app-nsg)
-
-Applied to: `app-subnet` (10.0.1.0/24)
-
-| Priority | Name | Direction | Access | Protocol | Source | Destination Port | Justification |
-|----------|------|-----------|--------|----------|--------|------------------|---------------|
-| 100 | AllowGatewayInbound | Inbound | Allow | TCP | 10.0.2.0/24 | 443 | Allow HTTPS traffic only from Application Gateway subnet - implements zero-trust architecture |
-| 100 | AllowInternetOutbound | Outbound | Allow | TCP | * | 443 | Allow outbound HTTPS for external API calls (Microsoft Graph, Teams, Bot Framework) |
-| 4096 | DenyAllInbound | Inbound | Deny | * | * | * | Default deny rule - blocks all traffic not explicitly allowed |
-
-**Security Notes:**
-- App subnet only accepts traffic from the gateway subnet, not directly from the internet
-- Outbound access is limited to HTTPS (port 443) for API communication
-- All other inbound traffic is denied by the default deny rule
-
-### Gateway NSG (gateway-nsg)
-
-Applied to: `gateway-subnet` (10.0.2.0/24)
-
-| Priority | Name | Direction | Access | Protocol | Source | Destination Port | Justification |
-|----------|------|-----------|--------|----------|--------|------------------|---------------|
-| 100 | AllowHTTPSInbound | Inbound | Allow | TCP | Internet | 443 | Allow public HTTPS access for user traffic - required for web application access |
-| 110 | AllowGatewayManager | Inbound | Allow | TCP | GatewayManager | 65200-65535 | **Azure Requirement** - Application Gateway v2 requires these ports for management and health probes |
-
-**Security Notes:**
-- GatewayManager service tag is required for Application Gateway v2 health probes
-- Port range 65200-65535 is mandated by Azure; blocking these ports causes Application Gateway deployment failure
-- HTTPS-only access ensures all traffic is encrypted in transit
+**Rationale:**
+- Implements Zero Trust: deny all by default, explicitly allow required traffic
+- Priority 4096: Lowest possible priority ensures explicit rules take precedence
+- Gateway-only inbound: Ensures traffic must flow through Application Gateway WAF
+- HTTPS outbound: Required for Teams API calls, Azure service communication
 
 ### NSG Flow Logs
 
-Flow logs are enabled for traffic visibility and security monitoring:
+**Configuration:**
+- **Enabled:** Yes
+- **Version:** 2 (includes flow direction and decision)
+- **Storage Account:** `chatopsnsgflow[random]`
+- **Retention:** 90 days
+- **Traffic Analytics:** Enabled with Log Analytics integration
+- **Interval:** 10 minutes
 
-| Configuration | Value |
-|---------------|-------|
-| **Storage Account** | chatopsnsgflow[random] |
-| **Retention** | 90 days |
-| **Version** | 2 (includes additional metrics) |
-| **Traffic Analytics** | Enabled (10-minute interval) |
-| **Log Analytics Workspace** | chatops-loganalytics |
+**Benefits:**
+- Security incident investigation
+- Network traffic pattern analysis
+- Compliance reporting (SOC 2, ISO 27001)
+- Cost optimization insights
 
----
+## DDoS Protection
 
-## Traffic Flow
+### Decision: Azure DDoS Protection Basic
 
-### Inbound Traffic Flow
+**Cost Analysis:**
+- **DDoS Protection Standard:** $2,944/month + data processed charges
+- **DDoS Protection Basic:** Included (no additional cost)
 
+**Decision Rationale:**
+
+✅ **Use Basic (Current):**
+1. **Cost Optimization:** Standard adds $35,328/year fixed cost
+2. **Workload Profile:** Internal Teams bot with controlled access patterns
+3. **Basic Coverage:** Automatic mitigation of common volumetric attacks
+4. **Layer 7 Protection:** Application Gateway WAF provides app-layer DDoS protection
+5. **Traffic Volume:** Expected traffic well within Basic capabilities
+
+❌ **Not Using Standard (Current):**
+- No financial transaction processing
+- No public-facing e-commerce
+- Limited external attack surface
+
+**When to Reconsider Standard:**
+- Application handles financial transactions
+- Traffic grows beyond 1 Gbps sustained
+- Compliance requirements mandate enhanced DDoS protection
+- Experience DDoS attacks that impact availability
+- Strict SLA requirements (99.99%+)
+
+**Monitoring Approach:**
+- Azure Monitor metrics for network traffic patterns
+- Application Gateway metrics for request rates
+- Quarterly security review to reassess DDoS requirements
+
+## Network Monitoring
+
+### Observability Stack
+
+| Component | Purpose | Retention | Cost Estimate |
+|-----------|---------|-----------|---------------|
+| Log Analytics Workspace | Centralized logging | 90 days | ~$2/GB |
+| NSG Flow Logs | Network traffic visibility | 90 days | ~$2/GB (~10-20 GB/month) |
+| Network Watcher | Connection troubleshooting | N/A | Pay-per-use |
+| Traffic Analytics | ML-based insights | Real-time | Included with flow logs |
+
+### Key Metrics Monitored
+
+**Network Performance:**
+- Bytes in/out per subnet
+- Packet drop rate
+- Connection failures
+- Latency between tiers
+
+**Security Events:**
+- Denied flows by NSG rules
+- Port scan attempts
+- Anomalous traffic patterns
+- Geo-location of traffic sources
+
+## Disaster Recovery Considerations
+
+### Current State
+- Single region deployment (East US)
+- No cross-region VNet peering
+
+### Future DR Strategy
+
+**When implementing disaster recovery (Sprint 4+):**
+
+1. **Secondary Region:** West US 2
+2. **VNet Addressing:**
+   - Primary: 10.0.0.0/16 (East US)
+   - Secondary: 10.1.0.0/16 (West US 2)
+3. **Connectivity:**
+   - VNet peering between regions
+   - Azure Traffic Manager for DNS-based failover
+4. **Data Replication:**
+   - Azure SQL geo-replication
+   - Storage account GRS replication
+
+## Hybrid Connectivity (Future)
+
+Reserved for future on-premises integration:
+
+### VPN Gateway Option
+- **Gateway Subnet:** Use 10.0.5.0/27 (dedicated /27 for VPN Gateway)
+- **SKU:** VpnGw2 (500 Mbps, $0.32/hour)
+- **Use Case:** Secure access to on-premises identity systems
+
+### ExpressRoute Option
+- **Gateway Subnet:** Use 10.0.5.0/27 (same subnet works for both)
+- **SKU:** Standard (1 Gbps, $730/month)
+- **Use Case:** High-bandwidth, low-latency on-premises connectivity
+
+## Security Best Practices Implemented
+
+✅ **Network Segmentation**
+- Dedicated subnets for gateway and application tiers
+- NSGs enforcing least-privilege access
+
+✅ **Defense in Depth**
+- Application Gateway WAF (future) for Layer 7 protection
+- NSG rules for Layer 4 filtering
+- Private networking with VNet integration
+
+✅ **Zero Trust Architecture**
+- Default deny-all rules (Priority 4096)
+- Explicit allow rules only for required traffic
+- No direct internet access to app tier
+
+✅ **Monitoring & Compliance**
+- NSG flow logs with 90-day retention
+- Traffic analytics for anomaly detection
+- Integration with Log Analytics for SIEM
+
+✅ **Cost Optimization**
+- DDoS Basic (included) vs. Standard ($2,944/month)
+- Right-sized subnets (251 IPs sufficient)
+- 90-day log retention balances cost and compliance
+
+## Compliance & Governance
+
+### Azure Policy Alignment
+
+The network configuration complies with common Azure Policy initiatives:
+
+| Policy | Status | Implementation |
+|--------|--------|----------------|
+| NSG on subnets | ✅ Compliant | All subnets have NSG attached |
+| NSG flow logs enabled | ✅ Compliant | Enabled with 90-day retention |
+| VNet has DDoS protection | ✅ Compliant | Basic (included) enabled |
+| Private networking | ✅ Compliant | No public IPs on app tier |
+
+### Tagging Strategy
+
+All network resources tagged with:
+- **Environment:** Production
+- **Application:** ChatOps
+- **CostCenter:** IT-Operations
+- **Owner:** ChatOps-Team
+- **ManagedBy:** Terraform
+
+## Operations Runbook
+
+### Common Tasks
+
+**View NSG Rules:**
+```bash
+az network nsg show --resource-group rg-chatops-prod --name app-nsg
 ```
-                    ┌─────────────────────────────────────────────────┐
-                    │                   INTERNET                      │
-                    └─────────────────────┬───────────────────────────┘
-                                          │ HTTPS (443)
-                                          ▼
-                    ┌─────────────────────────────────────────────────┐
-                    │              Azure DDoS Protection              │
-                    │                   (Basic)                       │
-                    └─────────────────────┬───────────────────────────┘
-                                          │
-                                          ▼
-    ┌─────────────────────────────────────────────────────────────────────────┐
-    │                         chatops-vnet (10.0.0.0/16)                      │
-    │                                                                         │
-    │  ┌───────────────────────────────────────────────────────────────────┐  │
-    │  │              gateway-subnet (10.0.2.0/24)                         │  │
-    │  │                     gateway-nsg                                   │  │
-    │  │  ┌─────────────────────────────────────────────────────────────┐  │  │
-    │  │  │              Application Gateway                            │  │  │
-    │  │  │              (WAF enabled - future)                         │  │  │
-    │  │  └──────────────────────────┬──────────────────────────────────┘  │  │
-    │  └─────────────────────────────┼─────────────────────────────────────┘  │
-    │                                │ HTTPS (443)                            │
-    │                                ▼                                        │
-    │  ┌───────────────────────────────────────────────────────────────────┐  │
-    │  │                app-subnet (10.0.1.0/24)                           │  │
-    │  │                       app-nsg                                     │  │
-    │  │  ┌─────────────────────────────────────────────────────────────┐  │  │
-    │  │  │              Azure App Service                              │  │  │
-    │  │  │              (ChatOps Bot Application)                      │  │  │
-    │  │  └──────────────────────────┬──────────────────────────────────┘  │  │
-    │  └─────────────────────────────┼─────────────────────────────────────┘  │
-    │                                │                                        │
-    └────────────────────────────────┼────────────────────────────────────────┘
-                                     │ Private Endpoint (future)
-                                     ▼
-                    ┌─────────────────────────────────────────────────┐
-                    │              Azure SQL / Key Vault              │
-                    │              (Private Endpoints)                │
-                    └─────────────────────────────────────────────────┘
+
+**Test Connectivity:**
+```bash
+az network watcher test-connectivity \
+  --resource-group rg-chatops-prod \
+  --source-resource <app-service-id> \
+  --dest-address <target-ip> \
+  --dest-port 443
 ```
 
-### Outbound Traffic Flow
-
-```
-    ┌─────────────────────────────────────────────────────────────────┐
-    │                    Azure App Service                            │
-    │                  (app-subnet 10.0.1.0/24)                       │
-    └───────────────────────────┬─────────────────────────────────────┘
-                                │
-                    ┌───────────┴───────────┐
-                    ▼                       ▼
-    ┌───────────────────────┐   ┌───────────────────────────┐
-    │   Private Endpoints   │   │   Internet (HTTPS/443)    │
-    │   - Key Vault         │   │   - Microsoft Graph API   │
-    │   - SQL Database      │   │   - Teams Bot Framework   │
-    │   - Storage           │   │   - Azure AD              │
-    └───────────────────────┘   └───────────────────────────┘
+**Query Flow Logs:**
+```kusto
+AzureNetworkAnalytics_CL
+| where SubType_s == "FlowLog"
+| where TimeGenerated > ago(1h)
+| where FlowStatus_s == "D" // Denied
+| summarize count() by SrcIP_s, DestIP_s, DestPort_d
 ```
 
----
+### Troubleshooting
 
-## Disaster Recovery
+**Issue: App Service cannot reach external API**
+1. Check NSG rule `AllowInternetOutbound` is not disabled
+2. Verify service endpoint or private endpoint configuration
+3. Check application logs in Log Analytics
 
-### Primary and Secondary Region Strategy
+**Issue: High network latency**
+1. Review Traffic Analytics for bandwidth utilization
+2. Check for NSG rule conflicts causing packet drops
+3. Verify Application Gateway health probes
 
-| Property | Primary Region | Secondary Region |
-|----------|----------------|------------------|
-| **Region** | East US | West US |
-| **VNet Address Space** | 10.0.0.0/16 | 10.1.0.0/16 |
-| **Subnet Range** | 10.0.x.0/24 | 10.1.x.0/24 |
+## References
 
-### Non-Overlapping Address Design
-
-The secondary region uses 10.1.0.0/16 to enable:
-- VNet peering between regions without IP conflicts
-- Cross-region private endpoint connectivity
-- Failover without re-IP addressing
-
-### Secondary Region Subnet Mapping
-
-| Primary Subnet | Primary CIDR | Secondary Subnet | Secondary CIDR |
-|----------------|--------------|------------------|----------------|
-| app-subnet | 10.0.1.0/24 | app-subnet | 10.1.1.0/24 |
-| gateway-subnet | 10.0.2.0/24 | gateway-subnet | 10.1.2.0/24 |
-| database-subnet | 10.0.3.0/24 | database-subnet | 10.1.3.0/24 |
-| cache-subnet | 10.0.4.0/24 | cache-subnet | 10.1.4.0/24 |
-
-### VNet Peering Strategy
-
-```
-    ┌────────────────────────────────┐       ┌────────────────────────────────┐
-    │       East US (Primary)        │       │      West US (Secondary)       │
-    │      chatops-vnet-eastus       │       │      chatops-vnet-westus       │
-    │         10.0.0.0/16            │◄─────►│         10.1.0.0/16            │
-    │                                │ Peering│                                │
-    │  ┌──────────────────────────┐  │       │  ┌──────────────────────────┐  │
-    │  │ app-subnet  10.0.1.0/24  │  │       │  │ app-subnet  10.1.1.0/24  │  │
-    │  └──────────────────────────┘  │       │  └──────────────────────────┘  │
-    │  ┌──────────────────────────┐  │       │  ┌──────────────────────────┐  │
-    │  │ gateway     10.0.2.0/24  │  │       │  │ gateway     10.1.2.0/24  │  │
-    │  └──────────────────────────┘  │       │  └──────────────────────────┘  │
-    │  ┌──────────────────────────┐  │       │  ┌──────────────────────────┐  │
-    │  │ database    10.0.3.0/24  │  │       │  │ database    10.1.3.0/24  │  │
-    │  └──────────────────────────┘  │       │  └──────────────────────────┘  │
-    └────────────────────────────────┘       └────────────────────────────────┘
-```
-
-### Failover DNS Configuration
-
-| Component | Strategy | Notes |
-|-----------|----------|-------|
-| **Azure Traffic Manager** | Priority routing | Primary region first, automatic failover |
-| **DNS TTL** | 60 seconds | Minimize propagation delay during failover |
-| **Health Probes** | HTTPS /health | Automatic failover on 3 consecutive failures |
-| **Failback** | Manual | Requires validation before returning to primary |
-
-### Recovery Time Objectives
-
-| Metric | Target | Notes |
-|--------|--------|-------|
-| **RTO** (Recovery Time Objective) | 15 minutes | DNS failover + warm standby |
-| **RPO** (Recovery Point Objective) | 1 hour | Database geo-replication |
-| **Failover Trigger** | Automatic | Via Traffic Manager health probes |
-
----
-
-## Related Documentation
-
-- [Network Troubleshooting Guide](./network-troubleshooting.md) - Common issues and Log Analytics queries
-- [Infrastructure README](../infrastructure/README.md) - Terraform configuration and deployment
-- [CI/CD Workflows](../.github/workflows/README.md) - Deployment pipelines
+- [Azure Virtual Network documentation](https://learn.microsoft.com/azure/virtual-network/)
+- [Azure NSG documentation](https://learn.microsoft.com/azure/virtual-network/network-security-groups-overview)
+- [Azure DDoS Protection documentation](https://learn.microsoft.com/azure/ddos-protection/ddos-protection-overview)
+- [Azure Well-Architected Framework](https://learn.microsoft.com/azure/architecture/framework/)
+- [Terraform AzureRM Provider](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs)
 
 ---
 
 **Document Version:** 1.0  
-**Last Updated:** 2025-11-28  
-**Maintained by:** Cloud Architecture Team  
-**Review Frequency:** Quarterly
+**Last Updated:** 2024-12-29  
+**Owner:** ChatOps Team  
+**Review Cycle:** Quarterly
