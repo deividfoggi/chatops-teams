@@ -5,6 +5,7 @@ This directory contains Terraform configurations for the ChatOps Teams applicati
 ## Table of Contents
 
 - [Overview](#overview)
+- [Sprint 1 Status](#sprint-1-status)
 - [Architecture](#architecture)
 - [IP Allocation Strategy](#ip-allocation-strategy)
 - [Azure Well-Architected Framework Alignment](#azure-well-architected-framework-alignment)
@@ -15,6 +16,31 @@ This directory contains Terraform configurations for the ChatOps Teams applicati
 ## Overview
 
 The ChatOps Teams infrastructure is designed to support a scalable, secure, and cost-effective deployment of the ChatOps application on Azure. The infrastructure follows Infrastructure as Code (IaC) best practices using Terraform.
+
+## Sprint 1 Status
+
+**Status:** ✅ **Foundation Complete**
+
+Sprint 1 has successfully deployed the three foundational infrastructure components:
+
+| Component | Issue | Status | Documentation |
+|-----------|-------|--------|---------------|
+| Azure Virtual Network | [#41](https://github.com/deividfoggi/chatops-teams/issues/41) | ✅ Deployed | [Network Architecture](../docs/network-architecture.md) |
+| Azure Key Vault | [#42](https://github.com/deividfoggi/chatops-teams/issues/42) | ✅ Deployed | [Key Vault Usage](../docs/key-vault-usage.md) |
+| Application Insights | [#39](https://github.com/deividfoggi/chatops-teams/issues/39) | ✅ Deployed | [App Insights Metrics](../docs/application-insights-custom-metrics.md) |
+
+**Infrastructure Readiness:**
+- ✅ Network isolation with NSGs and flow logs
+- ✅ Secrets management with RBAC-enabled Key Vault
+- ✅ Observability with multi-region availability tests
+- ✅ Security foundation for Sprint 2 (App Service, Application Gateway)
+
+**Sprint 2 Prerequisites:**
+- GitHub App registration approval (3-5 days)
+- Azure quota verification for PremiumV3 App Service
+- SSL certificate procurement for Application Gateway
+
+For detailed Sprint 1 information, see [Sprint 1 Foundation Planning](../docs/sprint-1-foundation-planning.md).
 
 ## Architecture
 
@@ -34,6 +60,8 @@ The infrastructure includes the following core components:
 
 The virtual network is configured with a `/16` address space providing ample room for current needs and future growth.
 
+For the complete IP allocation strategy including subnet design, future planning, and network security group rules, see [IP Allocation Strategy](../docs/ip-allocation-strategy.md).
+
 ### Address Space Summary
 
 | CIDR Block | Total IPs | Purpose |
@@ -46,7 +74,7 @@ The virtual network is configured with a `/16` address space providing ample roo
 |-------------|------------|------------|---------|
 | app-subnet | 10.0.1.0/24 | 251 | Application workloads (App Service, Container Apps) |
 | gateway-subnet | 10.0.2.0/24 | 251 | API Gateway and ingress controllers |
-| database-subnet | 10.0.3.0/24 | 251 | Database services (Azure SQL, CosmosDB) |
+| database-subnet | 10.0.3.0/24 | 251 | Database services (Azure SQL, CosmosDB) - Reserved for Sprint 2 |
 
 > **Note:** Azure reserves 5 IP addresses in each subnet (first 4 and last 1), reducing the usable count from 256 to 251 per /24 subnet.
 
