@@ -179,6 +179,46 @@ output "kv_secret_expiration_alert_id" {
 }
 
 # =============================================================================
+# Application Gateway Outputs
+# =============================================================================
+
+output "application_gateway_id" {
+  description = "The resource ID of the Application Gateway"
+  value       = azurerm_application_gateway.chatops.id
+}
+
+output "application_gateway_name" {
+  description = "The name of the Application Gateway"
+  value       = azurerm_application_gateway.chatops.name
+}
+
+output "application_gateway_public_ip_address" {
+  description = "The public IP address of the Application Gateway"
+  value       = azurerm_public_ip.appgw.ip_address
+}
+
+output "application_gateway_public_ip_fqdn" {
+  description = "The fully qualified domain name of the Application Gateway public IP"
+  value       = azurerm_public_ip.appgw.fqdn
+}
+
+output "application_gateway_backend_pool_id" {
+  description = "The ID of the Application Gateway backend address pool"
+  value       = length(azurerm_application_gateway.chatops.backend_address_pool) > 0 ? tolist(azurerm_application_gateway.chatops.backend_address_pool)[0].id : null
+}
+
+# =============================================================================
+# WAF Policy Outputs
+# =============================================================================
+
+output "waf_policy_id" {
+  description = "The resource ID of the Web Application Firewall policy"
+  value       = azurerm_web_application_firewall_policy.chatops.id
+}
+
+output "waf_policy_name" {
+  description = "The name of the Web Application Firewall policy"
+  value       = azurerm_web_application_firewall_policy.chatops.name
 # Key Vault Secrets Outputs
 # =============================================================================
 # These outputs provide references to secrets stored in Key Vault.

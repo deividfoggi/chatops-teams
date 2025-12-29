@@ -97,9 +97,13 @@ This infrastructure is designed following the [Azure Well-Architected Framework]
 
 - **Network Segmentation:** Separate subnets for app, gateway, and database tiers
 - **DDoS Protection:** Basic protection enabled by default with Standard available for upgrade
+- **Web Application Firewall:** WAF v2 with OWASP 3.2 ruleset in Prevention mode protecting against common threats
+- **Rate Limiting:** Custom WAF rule limiting requests to 100 per minute per IP to prevent abuse
+- **HTTPS Termination:** SSL/TLS offloading at Application Gateway with certificates stored in Key Vault
 - **Private Networking:** VNet foundation enables private endpoints and service endpoints
 - **No Hardcoded Secrets:** Sensitive values managed via variables and Azure Key Vault
 - **Key Vault RBAC:** Azure RBAC authorization (no legacy access policies) with least-privilege role assignments
+- **Comprehensive Logging:** All WAF events, access logs, and performance metrics sent to Log Analytics
 
 ## Prerequisites
 
@@ -253,7 +257,8 @@ The Key Vault uses Azure RBAC authorization (no legacy access policies) with the
 |------|----------|-------------|
 | Key Vault Administrator | Admin Group | Full management (secrets, keys, certificates, policies) |
 | Key Vault Secrets Officer | DevOps Service Principal | Create, update, delete secrets (for CI/CD) |
-| Key Vault Secrets User | App Service | Read secrets only (for applications) |
+| Key Vault Secrets User | Application Gateway | Read SSL certificates (for HTTPS termination) |
+| Key Vault Secrets User | App Service (Sprint 2) | Read secrets only (for applications) |
 
 > **Note:** Role assignments are conditionally created only when the corresponding object IDs are provided via Terraform variables.
 
