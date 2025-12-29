@@ -33,6 +33,7 @@ The ChatOps Teams application uses Azure Application Insights for monitoring and
 | High Exception Rate | 2 (Warning) | Every 1 min | 5 min | > 10 exceptions |
 | Failed Dependency | 2 (Warning) | Every 5 min | 15 min | > 5 failures |
 | Slow Response Time | 3 (Informational) | Every 5 min | 5 min | > 5000ms avg |
+| Availability Test Failure | 1 (Error) | Every 5 min | 10 min | ≥ 2 regions failing |
 
 ---
 
@@ -170,6 +171,55 @@ This alert fires when the average response time exceeds 5 seconds over a 5-minut
 ### Escalation
 
 If response times remain elevated for more than 1 hour, escalate to the development and infrastructure teams.
+
+---
+
+## Availability Test Failure Alert
+
+### Description
+
+This alert fires when availability tests fail from 2 or more regions within a 10-minute window. This indicates a potential service outage or significant degradation affecting global users.
+
+### Investigation Steps
+
+1. **Access Application Insights**
+   - Navigate to the Azure Portal
+   - Go to the Application Insights resource: `chatops-appinsights`
+   - Select **Availability** from the left menu
+
+2. **Review Test Results**
+   - Check the availability timeline to see which regions are failing
+   - Click on failed tests to see detailed error messages
+   - Note the pattern: Is it all regions or specific ones?
+   - Check the response time trends for degradation
+
+3. **Query for Availability Details**
+   ```kusto
+   availabilityResults
+   | where timestamp > ago(1h)
+   | where success == false
+   | summarize count() by location, name, resultCode
+   | order by count_ desc
+   ```
+
+4. **Check Application Health**
+   - Verify the App Service is running in the Azure Portal
+   - Check App Service metrics (CPU, Memory, HTTP errors)
+   - Review the `/health` endpoint response manually
+   - Check recent deployments that might have broken the health check
+
+### Resolution Actions
+
+- **App Service Down:** Restart the App Service or investigate crashes
+- **Health Endpoint Issue:** Fix the `/health` endpoint implementation
+- **SSL Certificate:** Renew or update SSL certificate if expiring
+- **Network Issue:** Check NSG rules, firewall settings, and DNS resolution
+- **Regional Outage:** Verify Azure status page for regional issues
+- **DDoS Attack:** Check for abnormal traffic patterns and enable DDoS protection
+
+### Escalation
+
+If availability tests fail from multiple regions for more than 10 minutes, this is a **critical incident**. Immediately escalate to the development team lead and infrastructure team. Consider paging on-call engineers.
 
 ---
 
