@@ -47,3 +47,9 @@ variable "devops_sp_object_id" {
     error_message = "The devops_sp_object_id must be a valid GUID format (e.g., 00000000-0000-0000-0000-000000000000)."
   }
 }
+
+variable "ops_team_email" {
+  description = "Email address for operations team alert notifications"
+  type        = string
+  default     = "ops-team@company.com"
+}
