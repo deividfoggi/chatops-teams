@@ -120,6 +120,8 @@ Before using this Terraform configuration, ensure you have:
 4. **Required Permissions**
    - Contributor role on the target subscription
    - Storage Blob Data Contributor on the state storage account
+   
+   **Important:** For GitHub Actions OIDC authentication, see the [OIDC Setup Guide](../.github/PIPELINE_SETUP.md#azure-setup-prerequisites) and [OIDC Troubleshooting](../docs/OIDC_TROUBLESHOOTING.md) for detailed permission requirements.
 
 ## Terraform Usage
 

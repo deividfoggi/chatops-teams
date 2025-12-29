@@ -124,46 +124,122 @@ Configure these variables at **Settings** → **Secrets and variables** → **Ac
 ### 1. Create Azure Service Principal with OIDC
 
 ```bash
+# Set your variables
+export SUBSCRIPTION_ID="<your-subscription-id>"
+export GITHUB_ORG="<your-github-org>"
+export GITHUB_REPO="<your-repo-name>"
+
 # Create service principal
-az ad sp create-for-rbac \
+SP_OUTPUT=$(az ad sp create-for-rbac \
   --name "github-actions-chatops" \
   --role contributor \
-  --scopes /subscriptions/{SUBSCRIPTION_ID} \
-  --sdk-auth
+  --scopes /subscriptions/$SUBSCRIPTION_ID \
+  --sdk-auth)
 
-# Configure OIDC federation
+# Extract values
+export APP_ID=$(echo $SP_OUTPUT | jq -r '.clientId')
+export SP_OBJECT_ID=$(az ad sp show --id $APP_ID --query id -o tsv)
+
+echo "Service Principal created:"
+echo "  App ID: $APP_ID"
+echo "  Object ID: $SP_OBJECT_ID"
+
+# Configure OIDC federation for dev environment
 az ad app federated-credential create \
-  --id {APP_ID} \
-  --parameters '{
-    "name": "github-actions",
-    "issuer": "https://token.actions.githubusercontent.com",
-    "subject": "repo:{GITHUB_ORG}/{REPO_NAME}:ref:refs/heads/main",
-    "audiences": ["api://AzureADTokenExchange"]
-  }'
+  --id $APP_ID \
+  --parameters "{
+    \"name\": \"github-actions-dev\",
+    \"issuer\": \"https://token.actions.githubusercontent.com\",
+    \"subject\": \"repo:$GITHUB_ORG/$GITHUB_REPO:environment:dev\",
+    \"audiences\": [\"api://AzureADTokenExchange\"],
+    \"description\": \"GitHub Actions - Dev Environment\"
+  }"
+
+# Configure OIDC federation for pull requests
+az ad app federated-credential create \
+  --id $APP_ID \
+  --parameters "{
+    \"name\": \"github-actions-pr\",
+    \"issuer\": \"https://token.actions.githubusercontent.com\",
+    \"subject\": \"repo:$GITHUB_ORG/$GITHUB_REPO:pull_request\",
+    \"audiences\": [\"api://AzureADTokenExchange\"],
+    \"description\": \"GitHub Actions - Pull Requests\"
+  }"
+
+# Configure OIDC federation for main branch
+az ad app federated-credential create \
+  --id $APP_ID \
+  --parameters "{
+    \"name\": \"github-actions-main\",
+    \"issuer\": \"https://token.actions.githubusercontent.com\",
+    \"subject\": \"repo:$GITHUB_ORG/$GITHUB_REPO:ref:refs/heads/main\",
+    \"audiences\": [\"api://AzureADTokenExchange\"],
+    \"description\": \"GitHub Actions - Main Branch\"
+  }"
+
+echo "Federated credentials configured"
 ```
 
 ### 2. Create Terraform Backend Storage
 
 ```bash
+# Set your variables (if not already set)
+export BACKEND_RG="rg-terraform-state"
+export BACKEND_SA="sttfstate$(openssl rand -hex 4)"  # Generates unique name
+
+echo "Creating Terraform backend: $BACKEND_SA"
+
 # Create resource group
 az group create \
-  --name rg-terraform-state \
+  --name $BACKEND_RG \
   --location eastus
 
 # Create storage account
 az storage account create \
-  --name stterraformstate{UNIQUE} \
-  --resource-group rg-terraform-state \
+  --name $BACKEND_SA \
+  --resource-group $BACKEND_RG \
   --location eastus \
-  --sku Standard_LRS
+  --sku Standard_LRS \
+  --allow-blob-public-access false \
+  --min-tls-version TLS1_2
 
 # Create container
 az storage container create \
   --name tfstate \
-  --account-name stterraformstate{UNIQUE}
+  --account-name $BACKEND_SA \
+  --auth-mode login
+
+echo "Terraform backend created: $BACKEND_SA"
 ```
 
-### 3. Tag Azure Resources
+### 3. Grant Storage Permissions (CRITICAL)
+
+**This step is required for Terraform to access the state files:**
+
+```bash
+# Grant Storage Blob Data Contributor role to the service principal
+STORAGE_ACCOUNT_ID=$(az storage account show \
+  --name $BACKEND_SA \
+  --resource-group $BACKEND_RG \
+  --query id -o tsv)
+
+az role assignment create \
+  --assignee $SP_OBJECT_ID \
+  --role "Storage Blob Data Contributor" \
+  --scope "$STORAGE_ACCOUNT_ID"
+
+echo "Storage permissions granted"
+
+# Verify the assignment
+az role assignment list \
+  --assignee $SP_OBJECT_ID \
+  --scope "$STORAGE_ACCOUNT_ID" \
+  --output table
+```
+
+**Important:** Without this step, you'll get `AuthorizationFailure` errors when Terraform tries to access the state file.
+
+### 4. Tag Azure Resources
 
 For automatic resource discovery, tag your Azure resources:
 
@@ -388,6 +464,34 @@ az storage blob lease break \
 - Check repository name matches exactly
 - Ensure branch/tag matches subject claim
 
+**For detailed troubleshooting:** See [OIDC Troubleshooting Guide](../docs/OIDC_TROUBLESHOOTING.md)
+
+#### 2a. Storage Authorization Failed
+**Error:** `Status=403 Code="AuthorizationFailure" Message="This request is not authorized to perform this operation"`
+
+**Solution:**
+This error occurs when the service principal lacks permission to access the Terraform state storage account.
+
+**Quick Fix:**
+```bash
+# Run the quick fix script
+./scripts/quick-fix-storage-permissions.sh
+
+# Or manually grant the role:
+az role assignment create \
+  --assignee {SERVICE_PRINCIPAL_OBJECT_ID} \
+  --role "Storage Blob Data Contributor" \
+  --scope "/subscriptions/{SUBSCRIPTION_ID}/resourceGroups/{BACKEND_RG}/providers/Microsoft.Storage/storageAccounts/{BACKEND_SA}"
+```
+
+**Verify Permissions:**
+```bash
+# Run the comprehensive verification script
+./scripts/verify-oidc-permissions.sh
+```
+
+**For detailed troubleshooting:** See [OIDC Troubleshooting Guide](../docs/OIDC_TROUBLESHOOTING.md)
+
 #### 3. Deployment Slot Swap Failed
 **Error:** `Slot swap failed`
 
@@ -461,10 +565,17 @@ For issues or questions:
 
 ## Additional Resources
 
+### Documentation
+- [OIDC Troubleshooting Guide](../docs/OIDC_TROUBLESHOOTING.md) - Comprehensive guide for diagnosing and fixing OIDC authentication issues
+- [Scripts README](../scripts/README.md) - Information about verification and quick-fix scripts
 - [GitHub Actions Documentation](https://docs.github.com/en/actions)
 - [Azure CLI Documentation](https://docs.microsoft.com/en-us/cli/azure/)
 - [Terraform Azure Provider](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs)
 - [Azure App Service Deployment](https://docs.microsoft.com/en-us/azure/app-service/deploy-github-actions)
+
+### Troubleshooting Tools
+- `scripts/verify-oidc-permissions.sh` - Comprehensive OIDC configuration verification
+- `scripts/quick-fix-storage-permissions.sh` - Quick fix for storage permission issues
 
 ---
 
