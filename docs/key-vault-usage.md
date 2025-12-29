@@ -175,7 +175,8 @@ resource "azurerm_key_vault_secret" "my_secret" {
   value        = "my-secret-value"
   key_vault_id = azurerm_key_vault.chatops.id
 
-  expiration_date = timeadd(timestamp(), "2160h") # 90 days
+  # Note: Do not set expiration_date in Terraform to avoid state management issues.
+  # Set expiration after deployment using Azure CLI or Portal.
 
   tags = {
     Environment = var.environment
@@ -184,7 +185,20 @@ resource "azurerm_key_vault_secret" "my_secret" {
     Owner       = var.owner
     ManagedBy   = "Terraform"
   }
+
+  depends_on = [
+    azurerm_key_vault.chatops
+  ]
 }
+```
+
+**Important:** After deploying with Terraform, set expiration dates using Azure CLI:
+
+```bash
+az keyvault secret set-attributes \
+  --vault-name <vault-name> \
+  --name my-secret \
+  --expires "$(date -u -d '90 days' +%Y-%m-%dT%H:%M:%SZ)"
 ```
 
 ### Using Application Code (Python)
