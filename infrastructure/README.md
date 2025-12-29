@@ -257,15 +257,23 @@ The Key Vault uses Azure RBAC authorization (no legacy access policies) with the
 
 > **Note:** Role assignments are conditionally created only when the corresponding object IDs are provided via Terraform variables.
 
-## Additional Documentation
+## Key Vault Secrets
 
-For detailed network architecture documentation, see:
+The following secrets are stored in Key Vault with placeholder values for Sprint 1:
 
-| Document | Description |
-|----------|-------------|
-| [Network Architecture](../docs/network-architecture.md) | VNet overview, subnet allocation, NSG rules, traffic flow, DR strategy |
-| [Network Troubleshooting](../docs/network-troubleshooting.md) | Common issues, Log Analytics queries, health checks |
-| [Network Diagram](../docs/network-diagram.drawio) | Visual network diagram (open with draw.io/diagrams.net) |
+| Secret Name | Description | Rotation Period |
+|-------------|-------------|-----------------|
+| `appinsights-connection-string` | Application Insights connection string | 365 days |
+| `github-webhook-secret` | GitHub webhook validation secret | 90 days |
+| `github-app-id` | GitHub App application ID | 365 days |
+| `github-app-private-key` | GitHub App authentication private key | 90 days |
+| `bot-app-id` | Teams Bot application ID | 365 days |
+| `bot-app-password` | Teams Bot client secret | 90 days |
+| `entra-client-secret` | Entra ID client secret for SSO | 90 days |
+
+> **Important:** Secrets are created with dummy/placeholder values. Update with production values during deployment.
+
+For detailed information on Key Vault usage and secret rotation, see [Key Vault Usage Guide](../docs/key-vault-usage.md).
 
 ## Contributing
 

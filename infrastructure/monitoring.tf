@@ -30,24 +30,6 @@ resource "azurerm_application_insights" "chatops" {
 # =============================================================================
 # Key Vault Secret for Application Insights Connection String
 # =============================================================================
-# This resource will store the Application Insights connection string in
-# Azure Key Vault for secure access by applications.
-#
-# Note: Key Vault is not yet configured (Task 6.4.1 dependency).
-# Uncomment this resource once Key Vault is available.
-# =============================================================================
-#
-# resource "azurerm_key_vault_secret" "appinsights_connection_string" {
-#   name         = "appinsights-connection-string"
-#   value        = azurerm_application_insights.chatops.connection_string
-#   key_vault_id = azurerm_key_vault.chatops.id
-#
-#   tags = {
-#     Environment = var.environment
-#     Application = "ChatOps"
-#     CostCenter  = var.cost_center
-#     Owner       = var.owner
-#     ManagedBy   = "Terraform"
-#   }
-# }
+# This resource is now defined in keyvault-secrets.tf to centralize all
+# secret management in one location.
 # =============================================================================

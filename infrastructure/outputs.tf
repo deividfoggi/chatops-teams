@@ -179,46 +179,43 @@ output "kv_secret_expiration_alert_id" {
 }
 
 # =============================================================================
-# App Service Outputs
+# Key Vault Secrets Outputs
+# =============================================================================
+# These outputs provide references to secrets stored in Key Vault.
+# Secret IDs can be used in App Service configuration for Key Vault references.
 # =============================================================================
 
-output "app_service_plan_id" {
-  description = "The resource ID of the App Service Plan"
-  value       = azurerm_service_plan.chatops.id
+output "appinsights_connection_string_secret_id" {
+  description = "The Key Vault secret ID for Application Insights connection string"
+  value       = azurerm_key_vault_secret.appinsights_connection_string.id
 }
 
-output "app_service_plan_name" {
-  description = "The name of the App Service Plan"
-  value       = azurerm_service_plan.chatops.name
+output "github_webhook_secret_id" {
+  description = "The Key Vault secret ID for GitHub webhook secret"
+  value       = azurerm_key_vault_secret.github_webhook_secret.id
 }
 
-output "app_service_id" {
-  description = "The resource ID of the App Service"
-  value       = azurerm_linux_web_app.chatops.id
+output "github_app_id_secret_id" {
+  description = "The Key Vault secret ID for GitHub App ID"
+  value       = azurerm_key_vault_secret.github_app_id.id
 }
 
-output "app_service_name" {
-  description = "The name of the App Service"
-  value       = azurerm_linux_web_app.chatops.name
+output "github_app_private_key_secret_id" {
+  description = "The Key Vault secret ID for GitHub App private key"
+  value       = azurerm_key_vault_secret.github_app_private_key.id
 }
 
-output "app_service_default_hostname" {
-  description = "The default hostname of the App Service"
-  value       = azurerm_linux_web_app.chatops.default_hostname
+output "bot_app_id_secret_id" {
+  description = "The Key Vault secret ID for Bot Application ID"
+  value       = azurerm_key_vault_secret.bot_app_id.id
 }
 
-output "app_service_url" {
-  description = "The URL of the App Service"
-  value       = "https://${azurerm_linux_web_app.chatops.default_hostname}"
+output "bot_app_password_secret_id" {
+  description = "The Key Vault secret ID for Bot Application Password"
+  value       = azurerm_key_vault_secret.bot_app_password.id
 }
 
-output "app_service_principal_id" {
-  description = "The principal ID of the App Service managed identity"
-  value       = azurerm_linux_web_app.chatops.identity[0].principal_id
-}
-
-output "app_service_identity_tenant_id" {
-  description = "The tenant ID of the App Service managed identity"
-  value       = azurerm_linux_web_app.chatops.identity[0].tenant_id
-  sensitive   = true
+output "entra_client_secret_secret_id" {
+  description = "The Key Vault secret ID for Entra ID client secret"
+  value       = azurerm_key_vault_secret.entra_client_secret.id
 }
