@@ -339,29 +339,6 @@ resource "azurerm_role_assignment" "flow_logs_storage" {
 }
 
 # -----------------------------------------------------------------------------
-# Role Assignment for Network Watcher Service Principal
-# -----------------------------------------------------------------------------
-# Azure Network Watcher needs access to write to the storage account.
-# This grants the Network Watcher resource provider access.
-# -----------------------------------------------------------------------------
-
-data "azurerm_client_config" "current" {}
-
-# -----------------------------------------------------------------------------
-# Role Assignment for Network Watcher Service
-# -----------------------------------------------------------------------------
-# Note: Commented out as Network Watcher flow logs are temporarily disabled
-# due to provider version constraints. Will be enabled after upgrading to
-# azurerm provider 4.0+ which supports managed identity for flow logs.
-# -----------------------------------------------------------------------------
-
-# resource "azurerm_role_assignment" "network_watcher_storage" {
-#   scope                = azurerm_storage_account.nsg_flow_logs.id
-#   role_definition_name = "Storage Blob Data Contributor"
-#   principal_id         = data.azurerm_client_config.current.object_id
-# }
-
-# -----------------------------------------------------------------------------
 # Network Watcher Resource Group
 # -----------------------------------------------------------------------------
 # Azure automatically creates a Network Watcher in a resource group named
