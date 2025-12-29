@@ -328,7 +328,7 @@ The ChatOps application is monitored via availability tests (also known as web t
 All availability tests target the `/health` endpoint:
 
 ```
-GET https://chatops-app-{environment}.azurewebsites.net/health
+GET https://chatops-app-${environment}.azurewebsites.net/health
 ```
 
 **Expected Response:**

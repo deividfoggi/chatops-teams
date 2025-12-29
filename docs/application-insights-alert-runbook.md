@@ -219,7 +219,7 @@ This alert fires when availability tests fail from 2 or more regions within a 10
 
 ### Escalation
 
-If availability tests fail from multiple regions for more than 15 minutes, this is a **critical incident**. Immediately escalate to the development team lead and infrastructure team. Consider paging on-call engineers.
+If availability tests fail from multiple regions for more than 10 minutes, this is a **critical incident**. Immediately escalate to the development team lead and infrastructure team. Consider paging on-call engineers.
 
 ---
 

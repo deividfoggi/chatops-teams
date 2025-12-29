@@ -32,6 +32,9 @@ resource "azurerm_application_insights" "chatops" {
 # =============================================================================
 # This resource stores the Application Insights connection string in
 # Azure Key Vault for secure access by applications.
+#
+# Note: Previously commented out pending Key Vault deployment (Task 6.4.1).
+# Now enabled as Key Vault is deployed and available.
 # =============================================================================
 
 resource "azurerm_key_vault_secret" "appinsights_connection_string" {
