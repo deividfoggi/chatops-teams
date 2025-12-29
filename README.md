@@ -103,6 +103,7 @@ All secrets are stored in Azure Key Vault. See:
 - [Bot Service Implementation](src/bot/README.md) - Teams Bot Framework integration
 - [Azure Bot Registration](teams-app/AZURE_BOT_REGISTRATION.md) - Bot service setup
 - [Entra ID SSO Configuration](teams-app/ENTRA_SSO_CONFIG.md) - Single Sign-On setup
+- [GitHub Webhook Configuration](docs/github-webhook-configuration.md) - Webhook setup and security
 
 ### Infrastructure
 - [Infrastructure Overview](infrastructure/README.md) - Terraform configuration and architecture
