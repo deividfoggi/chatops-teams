@@ -210,6 +210,9 @@ output "availability_test_australiaeast_id" {
 output "availability_test_failure_alert_id" {
   description = "The resource ID of the availability test failure alert"
   value       = azurerm_monitor_scheduled_query_rules_alert_v2.availability_test_failure.id
+}
+
+# =============================================================================
 # Application Gateway Outputs
 # =============================================================================
 
@@ -250,6 +253,9 @@ output "waf_policy_id" {
 output "waf_policy_name" {
   description = "The name of the Web Application Firewall policy"
   value       = azurerm_web_application_firewall_policy.chatops.name
+}
+
+# =============================================================================
 # Key Vault Secrets Outputs
 # =============================================================================
 # These outputs provide references to secrets stored in Key Vault.
