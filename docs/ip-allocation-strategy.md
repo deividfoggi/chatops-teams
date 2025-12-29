@@ -50,7 +50,7 @@ The `/16` CIDR block was chosen for the following reasons:
 | 10.0.22.0/24 | 256 | Staging environment - database tier | Future |
 | 10.0.100.0/22 | 1,024 | Azure Kubernetes Service (AKS) nodes | Future (if needed) |
 | 10.0.104.0/22 | 1,024 | AKS pods (delegated subnet) | Future (if needed) |
-| 10.0.108.0 - 10.0.255.0 | ~37,000 | Available for future expansion | Future |
+| 10.0.108.0 - 10.0.255.255 | ~37,000 | Available for future expansion | Future |
 
 ---
 
