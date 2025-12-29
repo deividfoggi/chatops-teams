@@ -203,9 +203,11 @@ resource "azurerm_linux_web_app" "chatops" {
     "ApplicationInsightsAgent_EXTENSION_VERSION" = "~3"
 
     # Managed Identity
-    "AZURE_CLIENT_ID" = "" # Will be populated after deployment with managed identity client ID
+    # Note: For system-assigned managed identity, AZURE_CLIENT_ID will be set to the principal_id.
+    # This can be manually updated post-deployment or the Azure SDK will auto-detect the identity.
+    "AZURE_CLIENT_ID" = ""
 
-    # Key Vault references (to be populated)
+    # Key Vault references
     "GITHUB_WEBHOOK_SECRET" = "@Microsoft.KeyVault(VaultName=${azurerm_key_vault.chatops.name};SecretName=github-webhook-secret)"
     "BOT_APP_ID"            = "@Microsoft.KeyVault(VaultName=${azurerm_key_vault.chatops.name};SecretName=bot-app-id)"
     "BOT_APP_PASSWORD"      = "@Microsoft.KeyVault(VaultName=${azurerm_key_vault.chatops.name};SecretName=bot-app-password)"
