@@ -45,6 +45,8 @@ The application is built on Azure cloud infrastructure with the following compon
    ```
 
 3. **Configure environment variables**
+   
+   Create a `.env` file in the `src` directory (use `.env.example` as a template):
    ```bash
    export BOT_APP_ID="<your-bot-app-id>"
    export BOT_APP_PASSWORD="<your-bot-app-password>"
@@ -54,7 +56,7 @@ The application is built on Azure cloud infrastructure with the following compon
 
 4. **Start the bot server**
    ```bash
-   node src/bot/server.js
+   npm start
    ```
 
 ## Secrets Management
@@ -120,10 +122,10 @@ cd src
 npm run lint
 ```
 
-### Building for Production
+### Starting Development Server
 ```bash
 cd src
-npm run build
+npm run start:dev
 ```
 
 ## Deployment
