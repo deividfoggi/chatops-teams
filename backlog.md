@@ -1,8 +1,8 @@
 # Product Backlog - ChatOps Teams Integration
 
-**Last Updated:** November 27, 2025
+**Last Updated:** December 29, 2025
 **Total Epics:** 6
-**Total Stories:** 28
+**Total Stories:** 29
 
 ---
 
@@ -1418,6 +1418,41 @@ So that **the application remains available during regional outages or failures*
 
 ---
 
+### Story 6.9: Parameterize Resource Group Name with Environment Variable
+
+**Priority:** High | **Story Points:** 2
+
+#### User Story
+As a **DevOps Engineer**
+I want **the resource group name to include the environment variable**
+So that **infrastructure for different environments (dev, staging, prod) is properly isolated**
+
+#### Acceptance Criteria
+- [ ] Given Terraform configuration, when resource group is defined, then it uses the `var.environment` variable in the name
+- [ ] Given environment is "dev", when deployed, then resource group is named `rg-chatops-dev`
+- [ ] Given environment is "prod", when deployed, then resource group is named `rg-chatops-prod`
+- [ ] Given multiple environments, when deployed simultaneously, then each has its own isolated resource group
+- [ ] Given existing infrastructure, when updated, then Terraform handles the resource group rename gracefully
+
+#### Technical Notes
+- Update `infrastructure/main.tf`:
+  - Change `name = "rg-chatops-prod"` to `name = "rg-chatops-${var.environment}"`
+- Verify `var.environment` is defined in `variables.tf` with appropriate validation
+- Update workflow files (`.github/workflows/infra-deploy-dev.yml`) to ensure `TF_VAR_environment` is set correctly
+- If resource already exists with old name, consider:
+  - Option 1: Manual migration (export/import resources)
+  - Option 2: Allow Terraform to recreate (destroys and creates)
+  - Option 3: Use `terraform state mv` to update state without recreating
+
+#### Labels
+`infrastructure` `terraform` `azure` `devops`
+
+#### Dependencies
+- Terraform infrastructure exists (Story 6.7)
+- Environment variable defined in `variables.tf`
+
+---
+
 ## Implementation Roadmap
 
 ### Phase 1: Foundation (Weeks 1-3)
@@ -1450,7 +1485,7 @@ So that **the application remains available during regional outages or failures*
 ## Summary Statistics
 
 **Total Epics:** 6
-**Total User Stories:** 28
+**Total User Stories:** 29
 
 **Story Points by Epic:**
 - Epic 1: 26 points
@@ -1458,13 +1493,13 @@ So that **the application remains available during regional outages or failures*
 - Epic 3: 18 points
 - Epic 4: 34 points
 - Epic 5: 47 points
-- Epic 6: 44 points
+- Epic 6: 46 points
 
-**Total Story Points:** 191 points
+**Total Story Points:** 193 points
 
 **Estimated Timeline:** 12-14 weeks (assuming team velocity of 15-20 points per week)
 
 **Priority Breakdown:**
-- High Priority: 23 stories
+- High Priority: 24 stories
 - Medium Priority: 5 stories
 - Low Priority: 0 stories
