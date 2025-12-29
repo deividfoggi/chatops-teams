@@ -25,6 +25,8 @@ The infrastructure includes the following core components:
 | Resource Group | Container for all ChatOps resources |
 | Virtual Network | 10.0.0.0/16 address space for network isolation |
 | Log Analytics Workspace | Centralized logging and monitoring |
+| Application Gateway | Layer 7 load balancer with WAF v2 for HTTPS termination |
+| Key Vault | Secure storage for secrets, keys, and SSL certificates |
 
 ## IP Allocation Strategy
 
@@ -93,9 +95,13 @@ This infrastructure is designed following the [Azure Well-Architected Framework]
 
 - **Network Segmentation:** Separate subnets for app, gateway, and database tiers
 - **DDoS Protection:** Basic protection enabled by default with Standard available for upgrade
+- **Web Application Firewall:** WAF v2 with OWASP 3.2 ruleset in Prevention mode protecting against common threats
+- **Rate Limiting:** Custom WAF rule limiting requests to 100 per minute per IP to prevent abuse
+- **HTTPS Termination:** SSL/TLS offloading at Application Gateway with certificates stored in Key Vault
 - **Private Networking:** VNet foundation enables private endpoints and service endpoints
 - **No Hardcoded Secrets:** Sensitive values managed via variables and Azure Key Vault
 - **Key Vault RBAC:** Azure RBAC authorization (no legacy access policies) with least-privilege role assignments
+- **Comprehensive Logging:** All WAF events, access logs, and performance metrics sent to Log Analytics
 
 ## Prerequisites
 
@@ -196,6 +202,10 @@ terraform apply tfplan
 | `azurerm_key_vault` | chatops | Secrets management |
 | `azurerm_role_assignment` | kv_admin | Key Vault Administrator role (admin group) |
 | `azurerm_role_assignment` | kv_secrets_officer | Key Vault Secrets Officer role (DevOps SP) |
+| `azurerm_application_gateway` | chatops | Application Gateway with WAF v2 |
+| `azurerm_web_application_firewall_policy` | chatops | WAF policy with OWASP 3.2 rules |
+| `azurerm_public_ip` | appgw | Public IP for Application Gateway |
+| `azurerm_user_assigned_identity` | appgw | Managed identity for Key Vault access |
 
 ## Key Vault RBAC Roles
 
@@ -205,6 +215,7 @@ The Key Vault uses Azure RBAC authorization (no legacy access policies) with the
 |------|----------|-------------|
 | Key Vault Administrator | Admin Group | Full management (secrets, keys, certificates, policies) |
 | Key Vault Secrets Officer | DevOps Service Principal | Create, update, delete secrets (for CI/CD) |
+| Key Vault Secrets User | Application Gateway | Read SSL certificates (for HTTPS termination) |
 | Key Vault Secrets User | App Service (Sprint 2) | Read secrets only (for applications) |
 
 > **Note:** Role assignments are conditionally created only when the corresponding object IDs are provided via Terraform variables.
