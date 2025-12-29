@@ -209,6 +209,16 @@ The Key Vault uses Azure RBAC authorization (no legacy access policies) with the
 
 > **Note:** Role assignments are conditionally created only when the corresponding object IDs are provided via Terraform variables.
 
+## Additional Documentation
+
+For detailed network architecture documentation, see:
+
+| Document | Description |
+|----------|-------------|
+| [Network Architecture](../docs/network-architecture.md) | VNet overview, subnet allocation, NSG rules, traffic flow, DR strategy |
+| [Network Troubleshooting](../docs/network-troubleshooting.md) | Common issues, Log Analytics queries, health checks |
+| [Network Diagram](../docs/network-diagram.drawio) | Visual network diagram (open with draw.io/diagrams.net) |
+
 ## Contributing
 
 1. Create a feature branch
