@@ -30,6 +30,8 @@ az keyvault show --name <your-keyvault-name> --query properties.vaultUri --outpu
 npm install @azure/identity @azure/keyvault-secrets
 ```
 
+**Important:** These packages are only needed if you access Key Vault secrets directly from your application code. If you use [Key Vault references in App Service Application Settings](#key-vault-reference-syntax), Azure automatically injects the secrets as environment variables and these packages are not required.
+
 Example code:
 ```javascript
 const { DefaultAzureCredential } = require('@azure/identity');

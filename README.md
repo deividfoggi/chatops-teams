@@ -122,6 +122,8 @@ cd src
 npm run lint
 ```
 
+**Note:** Linting is not yet configured. The lint script currently displays a placeholder message.
+
 ### Starting Development Server
 ```bash
 cd src
