@@ -193,9 +193,13 @@ terraform apply tfplan
 | `azurerm_resource_group` | chatops | Resource container |
 | `azurerm_virtual_network` | chatops_vnet | Network isolation |
 | `azurerm_log_analytics_workspace` | chatops | Monitoring and logging |
+| `azurerm_application_insights` | chatops | Application performance monitoring |
 | `azurerm_key_vault` | chatops | Secrets management |
+| `azurerm_key_vault_secret` | Various | Initial application secrets (7 secrets) |
 | `azurerm_role_assignment` | kv_admin | Key Vault Administrator role (admin group) |
 | `azurerm_role_assignment` | kv_secrets_officer | Key Vault Secrets Officer role (DevOps SP) |
+| `azurerm_monitor_action_group` | security_alerts | Security alert notifications |
+| `azurerm_monitor_scheduled_query_rules_alert_v2` | Various | Key Vault security alerts (3 alerts) |
 
 ## Key Vault RBAC Roles
 
@@ -208,6 +212,24 @@ The Key Vault uses Azure RBAC authorization (no legacy access policies) with the
 | Key Vault Secrets User | App Service (Sprint 2) | Read secrets only (for applications) |
 
 > **Note:** Role assignments are conditionally created only when the corresponding object IDs are provided via Terraform variables.
+
+## Key Vault Secrets
+
+The following secrets are stored in Key Vault with placeholder values for Sprint 1:
+
+| Secret Name | Description | Rotation Period |
+|-------------|-------------|-----------------|
+| `appinsights-connection-string` | Application Insights connection string | 365 days |
+| `github-webhook-secret` | GitHub webhook validation secret | 90 days |
+| `github-app-id` | GitHub App application ID | 365 days |
+| `github-app-private-key` | GitHub App authentication private key | 90 days |
+| `bot-app-id` | Teams Bot application ID | 365 days |
+| `bot-app-password` | Teams Bot client secret | 90 days |
+| `entra-client-secret` | Entra ID client secret for SSO | 90 days |
+
+> **Important:** Secrets are created with dummy/placeholder values. Update with production values during deployment.
+
+For detailed information on Key Vault usage and secret rotation, see [Key Vault Usage Guide](../docs/key-vault-usage.md).
 
 ## Contributing
 

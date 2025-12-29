@@ -177,3 +177,45 @@ output "kv_secret_expiration_alert_id" {
   description = "The resource ID of the Key Vault secret expiration alert"
   value       = azurerm_monitor_scheduled_query_rules_alert_v2.kv_secret_expiration.id
 }
+
+# =============================================================================
+# Key Vault Secrets Outputs
+# =============================================================================
+# These outputs provide references to secrets stored in Key Vault.
+# Secret IDs can be used in App Service configuration for Key Vault references.
+# =============================================================================
+
+output "appinsights_connection_string_secret_id" {
+  description = "The Key Vault secret ID for Application Insights connection string"
+  value       = azurerm_key_vault_secret.appinsights_connection_string.id
+}
+
+output "github_webhook_secret_id" {
+  description = "The Key Vault secret ID for GitHub webhook secret"
+  value       = azurerm_key_vault_secret.github_webhook_secret.id
+}
+
+output "github_app_id_secret_id" {
+  description = "The Key Vault secret ID for GitHub App ID"
+  value       = azurerm_key_vault_secret.github_app_id.id
+}
+
+output "github_app_private_key_secret_id" {
+  description = "The Key Vault secret ID for GitHub App private key"
+  value       = azurerm_key_vault_secret.github_app_private_key.id
+}
+
+output "bot_app_id_secret_id" {
+  description = "The Key Vault secret ID for Bot Application ID"
+  value       = azurerm_key_vault_secret.bot_app_id.id
+}
+
+output "bot_app_password_secret_id" {
+  description = "The Key Vault secret ID for Bot Application Password"
+  value       = azurerm_key_vault_secret.bot_app_password.id
+}
+
+output "entra_client_secret_secret_id" {
+  description = "The Key Vault secret ID for Entra ID client secret"
+  value       = azurerm_key_vault_secret.entra_client_secret.id
+}
