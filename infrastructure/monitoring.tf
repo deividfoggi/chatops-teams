@@ -51,8 +51,6 @@ resource "azurerm_application_insights" "chatops" {
 #   - 30-second timeout: Appropriate for API endpoints
 #   - SSL validation: Ensures certificate validity
 #   - Success criteria: 200 status code and response within timeout
-# This resource is now defined in keyvault-secrets.tf to centralize all
-# secret management in one location.
 # =============================================================================
 
 # -----------------------------------------------------------------------------
