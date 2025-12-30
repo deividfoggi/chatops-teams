@@ -269,13 +269,12 @@ resource "azurerm_application_gateway" "chatops" {
   # Backend Pool Configuration
   # =============================================================================
   # Backend pool for App Service instances.
-  # Currently empty - will be populated when App Service is deployed in future stories.
+  # Connects Application Gateway to the ChatOps App Service via FQDN.
   # =============================================================================
 
   backend_address_pool {
-    name = "backend-pool"
-    # fqdns will be added when App Service is deployed
-    # Example: fqdns = [azurerm_linux_web_app.chatops.default_hostname]
+    name  = "backend-pool"
+    fqdns = [azurerm_linux_web_app.chatops.default_hostname]
   }
 
   # =============================================================================
