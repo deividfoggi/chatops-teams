@@ -40,7 +40,9 @@ jobs:
         run: |
           # Create a clean deployment package
           mkdir -p ../deployment
-          cp -r * ../deployment/ 2>/dev/null || true
+          
+          # Copy necessary application files (exclude .git, node_modules, tests)
+          rsync -av --exclude='node_modules' --exclude='.git' --exclude='*.test.js' --exclude='coverage' . ../deployment/
           
           # Remove dev dependencies and reinstall for production
           cd ../deployment
@@ -184,9 +186,12 @@ jobs:
           
           echo "POST request HTTP code: $POST_CODE"
           
-          if [ "$POST_CODE" = "401" ] || [ "$POST_CODE" = "400" ] || [ "$POST_CODE" = "500" ]; then
+          if [ "$POST_CODE" = "401" ] || [ "$POST_CODE" = "400" ]; then
             echo "✅ Webhook POST endpoint is configured correctly (returned ${POST_CODE}, not 404)"
             echo "status=passed" >> $GITHUB_OUTPUT
+          elif [ "$POST_CODE" = "500" ]; then
+            echo "⚠️ Webhook POST endpoint returned 500 (server error) - endpoint exists but may have configuration issues"
+            echo "status=warning" >> $GITHUB_OUTPUT
           elif [ "$POST_CODE" = "404" ]; then
             echo "❌ Webhook POST endpoint returned 404 - endpoint not found!"
             echo "status=failed" >> $GITHUB_OUTPUT
@@ -325,7 +330,7 @@ jobs:
                   ]
                 }, {
                   "type": "TextBlock",
-                  "text": "Ready for production swap",
+                  "text": "'"$(if [ "$DEPLOY_STATUS" = "success" ] && [ "$SMOKE_STATUS" = "success" ]; then echo "✅ Ready for production swap"; else echo "⚠️ Review failures before promoting to production"; fi)"'",
                   "wrap": true,
                   "isSubtle": true
                 }],
