@@ -15,8 +15,12 @@ on:
         description: 'Azure resource group containing the App Service'
         required: true
         type: string
+      artifact_name:
+        description: 'Name of the artifact containing deployment package'
+        required: true
+        type: string
       deployment_package_path:
-        description: 'Path to the deployment package (zip file)'
+        description: 'Path to the deployment package within the artifact (e.g., deployment.zip)'
         required: true
         type: string
       health_check_url:
@@ -52,13 +56,21 @@ jobs:
       deployment_url: ${{ steps.set_outputs.outputs.deployment_url }}
     
     steps:
-      - name: Download deployment package
-        id: download_package
+      - name: Download deployment artifact
+        id: download_artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+        continue-on-error: true
+      
+      - name: Verify deployment package
+        id: verify_package
+        if: steps.download_artifact.outcome == 'success'
         run: |
-          echo "Downloading deployment package from: ${{ inputs.deployment_package_path }}"
+          echo "Verifying deployment package: ${{ inputs.deployment_package_path }}"
           if [ ! -f "${{ inputs.deployment_package_path }}" ]; then
             echo "❌ Error: Deployment package not found at ${{ inputs.deployment_package_path }}"
-            echo "deployment_error=Deployment package not found" >> $GITHUB_OUTPUT
+            echo "deployment_error=Deployment package not found at ${{ inputs.deployment_package_path }}" >> $GITHUB_OUTPUT
             exit 1
           fi
           echo "✅ Deployment package found"
@@ -66,7 +78,7 @@ jobs:
       
       - name: Azure Login (OIDC)
         id: azure_login
-        if: steps.download_package.outcome == 'success'
+        if: steps.verify_package.outcome == 'success'
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -156,9 +168,12 @@ jobs:
         if: always()
         run: |
           # Determine deployment status
-          if [ "${{ steps.download_package.outcome }}" != "success" ]; then
+          if [ "${{ steps.download_artifact.outcome }}" != "success" ]; then
             echo "deployment_status=failure" >> $GITHUB_OUTPUT
-            echo "deployment_error=Failed to download deployment package" >> $GITHUB_OUTPUT
+            echo "deployment_error=Failed to download deployment artifact" >> $GITHUB_OUTPUT
+          elif [ "${{ steps.verify_package.outcome }}" != "success" ]; then
+            echo "deployment_status=failure" >> $GITHUB_OUTPUT
+            echo "deployment_error=Deployment package verification failed" >> $GITHUB_OUTPUT
           elif [ "${{ steps.azure_login.outcome }}" != "success" ]; then
             echo "deployment_status=failure" >> $GITHUB_OUTPUT
             echo "deployment_error=Azure login failed" >> $GITHUB_OUTPUT
@@ -189,9 +204,19 @@ jobs:
             echo "deployment_url=N/A" >> $GITHUB_OUTPUT
           fi
           
-          # Display summary
+          # Display summary (using local calculation)
+          FINAL_STATUS="failure"
+          if [ "${{ steps.download_artifact.outcome }}" = "success" ] && \
+             [ "${{ steps.verify_package.outcome }}" = "success" ] && \
+             [ "${{ steps.azure_login.outcome }}" = "success" ] && \
+             [ "${{ steps.verify_app_service.outcome }}" = "success" ] && \
+             [ "${{ steps.deploy_app.outcome }}" = "success" ] && \
+             [ "${{ steps.health_check.outcome }}" = "success" ]; then
+            FINAL_STATUS="success"
+          fi
+          
           echo "=== Deployment Summary ==="
-          echo "Status: $([ '${{ steps.set_outputs.outputs.deployment_status }}' = 'success' ] && echo '✅ Success' || echo '❌ Failed')"
+          echo "Status: $([ "$FINAL_STATUS" = 'success' ] && echo '✅ Success' || echo '❌ Failed')"
           echo "Health Check: ${{ steps.health_check.outputs.health_check_result }}"
           echo "URL: ${{ steps.verify_app_service.outputs.deployment_url }}"
       
@@ -218,8 +243,10 @@ jobs:
           # Build error details if any
           ERROR_DETAILS=""
           if [ "$DEPLOY_STATUS" = "failure" ]; then
-            if [ -n "${{ steps.download_package.outputs.deployment_error }}" ]; then
-              ERROR_DETAILS="Error: ${{ steps.download_package.outputs.deployment_error }}"
+            if [ -n "${{ steps.download_artifact.outputs.deployment_error }}" ]; then
+              ERROR_DETAILS="Error: Failed to download artifact"
+            elif [ -n "${{ steps.verify_package.outputs.deployment_error }}" ]; then
+              ERROR_DETAILS="Error: ${{ steps.verify_package.outputs.deployment_error }}"
             elif [ -n "${{ steps.verify_app_service.outputs.deployment_error }}" ]; then
               ERROR_DETAILS="Error: ${{ steps.verify_app_service.outputs.deployment_error }}"
             elif [ -n "${{ steps.health_check.outputs.health_check_error }}" ]; then
@@ -291,6 +318,7 @@ jobs:
             const environment = '${{ inputs.environment }}';
             const appService = '${{ inputs.app_service_name }}';
             const resourceGroup = '${{ inputs.resource_group }}';
+            const commitSha = '${{ github.sha }}'.substring(0, 7);
             
             const statusIcon = deployStatus === 'success' ? '✅' : '❌';
             const healthIcon = healthStatus === 'healthy' ? '✅' : (healthStatus === 'unhealthy' ? '❌' : '⚠️');
@@ -306,7 +334,7 @@ jobs:
             summary += `- **Resource Group:** \`${resourceGroup}\`\n`;
             summary += `- **URL:** ${deployUrl}\n`;
             summary += `- **Deployed by:** @${{ github.actor }}\n`;
-            summary += `- **Commit:** \`${{ github.sha }}\`.substring(0, 7)\n\n`;
+            summary += `- **Commit:** \`${commitSha}\`\n\n`;
             
             if (deployStatus === 'failure') {
               summary += `### ⚠️ Deployment Failed\n\n`;
@@ -329,7 +357,8 @@ jobs:
           echo "Resource Group: ${{ inputs.resource_group }}"
           echo ""
           echo "Failed Step Details:"
-          echo "- Package Download: ${{ steps.download_package.outcome }}"
+          echo "- Artifact Download: ${{ steps.download_artifact.outcome }}"
+          echo "- Package Verification: ${{ steps.verify_package.outcome }}"
           echo "- Azure Login: ${{ steps.azure_login.outcome }}"
           echo "- App Service Verification: ${{ steps.verify_app_service.outcome }}"
           echo "- Deployment: ${{ steps.deploy_app.outcome }}"
