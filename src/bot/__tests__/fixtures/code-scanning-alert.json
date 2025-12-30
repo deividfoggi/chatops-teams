@@ -1,0 +1,70 @@
+{
+  "action": "created",
+  "alert": {
+    "number": 42,
+    "state": "open",
+    "dismissed_at": null,
+    "dismissed_by": null,
+    "dismissed_reason": null,
+    "dismissed_comment": null,
+    "rule": {
+      "id": "js/sql-injection",
+      "name": "SQL Injection",
+      "severity": "high",
+      "security_severity_level": "high",
+      "description": "Building a SQL query from user-controlled sources is vulnerable to insertion of malicious SQL code.",
+      "tags": [
+        "security",
+        "external/cwe/cwe-089"
+      ]
+    },
+    "tool": {
+      "name": "CodeQL",
+      "version": "2.15.0"
+    },
+    "most_recent_instance": {
+      "ref": "refs/heads/main",
+      "analysis_key": ".github/workflows/codeql-analysis.yml:analyze",
+      "environment": "{}",
+      "state": "open",
+      "commit_sha": "abc123def456",
+      "message": {
+        "text": "This query depends on a user-provided value."
+      },
+      "location": {
+        "path": "src/database/queries.js",
+        "start_line": 45,
+        "end_line": 45,
+        "start_column": 15,
+        "end_column": 45
+      },
+      "classifications": []
+    },
+    "instances_url": "https://api.github.com/repos/test-org/test-repo/code-scanning/alerts/42/instances",
+    "url": "https://api.github.com/repos/test-org/test-repo/code-scanning/alerts/42",
+    "html_url": "https://github.com/test-org/test-repo/security/code-scanning/42",
+    "created_at": "2025-01-15T10:00:00Z",
+    "updated_at": "2025-01-15T10:00:00Z"
+  },
+  "ref": "refs/heads/main",
+  "commit_oid": "abc123def456",
+  "repository": {
+    "id": 123456789,
+    "name": "test-repo",
+    "full_name": "test-org/test-repo",
+    "private": false,
+    "owner": {
+      "login": "test-org",
+      "id": 987654321,
+      "type": "Organization"
+    },
+    "html_url": "https://github.com/test-org/test-repo",
+    "description": "Test repository for webhook testing",
+    "default_branch": "main"
+  },
+  "sender": {
+    "login": "github-actions[bot]",
+    "id": 41898282,
+    "type": "Bot"
+  }
+}
