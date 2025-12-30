@@ -8,15 +8,17 @@
  */
 
 const { processCodeScanningAlert } = require('./alertSeverityFilter');
+const { identifyCommitAuthor } = require('../github');
 
 /**
  * Handles code scanning alert webhook events
  * 
  * @param {Object} payload - The webhook payload
  * @param {Object} telemetryClient - Application Insights client
+ * @param {Object} githubClient - GitHub API client instance (optional)
  * @returns {Promise<Object>} Processing result
  */
-async function handleCodeScanningAlert(payload, telemetryClient) {
+async function handleCodeScanningAlert(payload, telemetryClient, githubClient) {
   const { action, alert, repository, sender } = payload;
   const repositoryFullName = repository?.full_name || 'unknown';
 
@@ -83,6 +85,23 @@ async function handleCodeScanningAlert(payload, telemetryClient) {
       ? `Code scanning alert ${action} (ESCALATED): ${metadata.description}`
       : `Code scanning alert ${action} (logged only): ${metadata.description}`,
   };
+
+  // Identify commit author if GitHub client is provided
+  if (githubClient && alert && repository) {
+    try {
+      const authorInfo = await identifyCommitAuthor(alert, repository, githubClient, telemetryClient);
+      result.authorIdentification = authorInfo;
+
+      if (authorInfo.success && authorInfo.primaryAuthor) {
+        console.log(`Commit author identified: ${authorInfo.primaryAuthor.githubLogin}`);
+      } else {
+        console.log(`Commit author identification: ${authorInfo.message}`);
+      }
+    } catch (error) {
+      console.error('Error identifying commit author:', error.message);
+      result.authorIdentificationError = error.message;
+    }
+  }
 
   console.log(`Code scanning alert processed: ${JSON.stringify(result)}`);
 
@@ -224,15 +243,16 @@ async function handlePing(payload, telemetryClient) {
  * @param {string} eventType - The GitHub event type
  * @param {Object} payload - The webhook payload
  * @param {Object} telemetryClient - Application Insights client
+ * @param {Object} githubClient - GitHub API client instance (optional)
  * @returns {Promise<Object>} Processing result
  */
-async function routeWebhookEvent(eventType, payload, telemetryClient) {
+async function routeWebhookEvent(eventType, payload, telemetryClient, githubClient) {
   try {
     let result;
 
     switch (eventType) {
       case 'code_scanning_alert':
-        result = await handleCodeScanningAlert(payload, telemetryClient);
+        result = await handleCodeScanningAlert(payload, telemetryClient, githubClient);
         break;
 
       case 'dependabot_alert':

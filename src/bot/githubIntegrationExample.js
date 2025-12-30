@@ -2,18 +2,19 @@
  * Example: Integrating GitHub API Client with Webhook Handlers
  * 
  * This example demonstrates how to use the GitHub API client
- * to enrich webhook data with additional information from GitHub.
+ * to enrich webhook data with additional information from GitHub,
+ * including commit author identification.
  */
 
-const { GitHubClient } = require('../github');
+const { GitHubClient, identifyCommitAuthor } = require('../github');
 const { routeWebhookEvent } = require('./webhookHandlers');
 
 /**
  * Enhanced webhook handler that enriches webhook data with GitHub API calls
  */
 async function handleWebhookWithEnrichment(eventType, payload, telemetryClient, githubClient) {
-  // First, process the webhook event normally
-  const result = await routeWebhookEvent(eventType, payload, telemetryClient);
+  // First, process the webhook event normally (now includes commit author identification)
+  const result = await routeWebhookEvent(eventType, payload, telemetryClient, githubClient);
   
   // Then enrich with additional data from GitHub API
   if (eventType === 'code_scanning_alert' && payload.repository && payload.alert) {
@@ -35,11 +36,15 @@ async function handleWebhookWithEnrichment(eventType, payload, telemetryClient, 
         result.enrichment.securityChampionSource = champion.source;
       }
       
-      // If there's a commit SHA in the alert, get commit author
-      if (alert.most_recent_instance?.location?.start_line) {
-        // This would need the actual commit SHA from the alert
-        // For demonstration purposes
-        result.enrichment.note = 'Commit author information can be retrieved if SHA is available';
+      // Commit author is now automatically identified by the handler
+      // It's available in result.authorIdentification
+      if (result.authorIdentification?.success) {
+        console.log(`✓ Commit author: ${result.authorIdentification.primaryAuthor?.githubLogin}`);
+        
+        // TODO: Map GitHub username to Entra ID when Story 1.3 is implemented
+        // const entraIdUser = await userMappingService.mapGitHubToEntraId(
+        //   result.authorIdentification.primaryAuthor.githubLogin
+        // );
       }
       
     } catch (error) {
@@ -65,26 +70,37 @@ async function example() {
   console.log('    token: process.env.GITHUB_TOKEN');
   console.log('  });\n');
   
-  console.log('Step 2: Process webhook event');
-  console.log('  const result = await routeWebhookEvent(eventType, payload, telemetry);\n');
+  console.log('Step 2: Process webhook event with automatic commit author identification');
+  console.log('  const result = await routeWebhookEvent(');
+  console.log('    eventType, payload, telemetry, githubClient');
+  console.log('  );\n');
   
-  console.log('Step 3: Enrich with GitHub API data');
+  console.log('Step 3: Access commit author information');
+  console.log('  if (result.authorIdentification?.success) {');
+  console.log('    const author = result.authorIdentification.primaryAuthor;');
+  console.log('    console.log(`Author: ${author.githubLogin}`);');
+  console.log('    console.log(`Email: ${author.gitEmail}`);');
+  console.log('    console.log(`Is Bot: ${result.authorIdentification.isBotCommit}`);');
+  console.log('    console.log(`Is Merge: ${result.authorIdentification.isMergeCommit}`);');
+  console.log('  }\n');
+  
+  console.log('Step 4: Enrich with additional GitHub API data');
   console.log('  const repoInfo = await githubClient.getRepository(owner, repo);');
-  console.log('  const champion = await githubClient.getSecurityChampion(owner, repo);');
-  console.log('  const commit = await githubClient.getCommit(owner, repo, sha);\n');
+  console.log('  const champion = await githubClient.getSecurityChampion(owner, repo);\n');
   
-  console.log('Step 4: Add enriched data to result');
-  console.log('  result.enrichment = {');
-  console.log('    repositoryOwner: repoInfo.owner,');
-  console.log('    securityChampions: champion.champions,');
-  console.log('    commitAuthor: commit.author');
-  console.log('  };\n');
+  console.log('Step 5: Map GitHub user to Entra ID (when Story 1.3 is implemented)');
+  console.log('  // const entraIdUser = await userMappingService.mapGitHubToEntraId(');
+  console.log('  //   author.githubLogin');
+  console.log('  // );\n');
   
   console.log('Benefits:');
-  console.log('✓ Automatic rate limiting and retry logic');
+  console.log('✓ Automatic commit author identification from alerts');
+  console.log('✓ Bot commit detection');
+  console.log('✓ Merge commit handling');
+  console.log('✓ Rate limiting and retry logic');
   console.log('✓ Caching reduces API calls');
   console.log('✓ Exponential backoff prevents overwhelming GitHub');
-  console.log('✓ Telemetry tracking for all API calls');
+  console.log('✓ Telemetry tracking for all operations');
   console.log('✓ Support for both token and GitHub App authentication\n');
   
   console.log('Example complete! See githubIntegrationExample.js for implementation details.');
