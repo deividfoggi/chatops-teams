@@ -1243,7 +1243,63 @@ So that **secrets are centrally managed, encrypted, and never stored in code**
 
 ---
 
-### Story 6.5: Configure Application Insights and Logging
+### Story 6.5: Provision Azure Cache for Redis
+
+**Priority:** High | **Story Points:** 5
+
+#### User Story
+As a **Backend Developer**
+I want **Azure Cache for Redis provisioned and configured**
+So that **distributed caching works across multiple App Service instances for repository metadata, conversation references, and rate limiting**
+
+#### Acceptance Criteria
+- [ ] Given Redis cache, when provisioned, then it uses Premium tier with persistence and geo-replication enabled
+- [ ] Given Redis connection, when App Service accesses it, then TLS encryption is enforced
+- [ ] Given cache eviction, when memory limit reached, then LRU (allkeys-lru) policy is applied
+- [ ] Given cache metrics, when monitored, then hit/miss ratio, memory usage, and connection count are tracked in Application Insights
+- [ ] Given Redis credentials, when stored, then they are retrieved from Key Vault using managed identity
+
+#### Technical Notes
+- Create Azure Cache for Redis: `chatops-redis-{unique-suffix}`
+- SKU: Premium P1 (6GB) or higher for production
+  - Supports data persistence (RDB and AOF)
+  - Supports geo-replication for disaster recovery
+  - Provides VNet integration
+- Configuration:
+  - Enable TLS 1.2 minimum version
+  - Enable persistence: RDB snapshot every 15 minutes
+  - Set maxmemory-policy: `allkeys-lru`
+  - Configure firewall: allow App Service subnet only
+- Integrate with VNet:
+  - Deploy Redis into dedicated subnet: `chatops-redis-subnet` (10.0.4.0/24)
+  - Configure private endpoint for secure connectivity
+- Store connection details in Key Vault:
+  - `redis-host`: `{cache-name}.redis.cache.windows.net`
+  - `redis-port`: `6380`
+  - `redis-access-key`: Primary access key
+- Configure App Service environment variables:
+  - `REDIS_HOST`: Reference Key Vault secret
+  - `REDIS_PORT`: `6380`
+  - `REDIS_PASSWORD`: Reference Key Vault secret
+  - `REDIS_TLS`: `true`
+- Enable diagnostic logs: send to Log Analytics workspace
+- Create cache performance alerts:
+  - Server load > 90% for 5 minutes
+  - Cache misses > 50% for 10 minutes
+  - Connection errors > 5 in 5 minutes
+
+#### Labels
+`infrastructure` `azure` `redis` `caching` `performance`
+
+#### Dependencies
+- VNet and subnets deployed (Story 6.1)
+- App Service with managed identity deployed (Story 6.3)
+- Key Vault deployed (Story 6.4)
+- Application code already supports Redis with fallback (Story 1.4 completed)
+
+---
+
+### Story 6.6: Configure Application Insights and Logging
 
 **Priority:** High | **Story Points:** 5
 
@@ -1285,11 +1341,12 @@ So that **application performance and errors are tracked and alerted**
 
 #### Dependencies
 - App Service deployed (Story 6.3)
+- Azure Cache for Redis deployed (Story 6.5)
 - Application code instrumented with Application Insights SDK
 
 ---
 
-### Story 6.6: Implement Database for State and Audit
+### Story 6.7: Implement Database for State and Audit
 
 **Priority:** High | **Story Points:** 5
 
@@ -1330,7 +1387,7 @@ So that **data is persisted reliably and can be queried for reporting**
 
 ---
 
-### Story 6.7: Implement Infrastructure as Code with Bicep/Terraform
+### Story 6.8: Implement Infrastructure as Code with Bicep/Terraform
 
 **Priority:** Medium | **Story Points:** 8
 
@@ -1353,6 +1410,7 @@ So that **deployments are repeatable, version-controlled, and automated**
   - Application Gateway with WAF
   - App Service Plan and App Service
   - Key Vault
+  - Azure Cache for Redis
   - Application Insights
   - Database
   - Bot Service
@@ -1369,12 +1427,12 @@ So that **deployments are repeatable, version-controlled, and automated**
 `infrastructure` `azure` `iac` `devops` `automation`
 
 #### Dependencies
-- All infrastructure stories completed (6.1-6.6)
+- All infrastructure stories completed (6.1-6.7)
 - GitHub repository created
 
 ---
 
-### Story 6.8: Implement Disaster Recovery and High Availability
+### Story 6.9: Implement Disaster Recovery and High Availability
 
 **Priority:** Medium | **Story Points:** 8
 
@@ -1414,7 +1472,7 @@ So that **the application remains available during regional outages or failures*
 `infrastructure` `azure` `disaster-recovery` `high-availability`
 
 #### Dependencies
-- All infrastructure deployed in primary region (Stories 6.1-6.7)
+- All infrastructure deployed in primary region (Stories 6.1-6.8)
 
 ---
 
@@ -1457,7 +1515,7 @@ So that **infrastructure for different environments (dev, staging, prod) is prop
 
 ### Phase 1: Foundation (Weeks 1-3)
 - Epic 1: GitHub Integration & Webhook Management
-- Epic 6: Azure Infrastructure & Security (Stories 6.1-6.6)
+- Epic 6: Azure Infrastructure & Security (Stories 6.1-6.7)
 
 ### Phase 2: Alert Processing (Weeks 4-6)
 - Epic 2: Code Scanning Alert Processing
@@ -1469,7 +1527,7 @@ So that **infrastructure for different environments (dev, staging, prod) is prop
 - Epic 5: Microsoft Teams Integration (Stories 5.5-5.7)
 
 ### Phase 4: Production Hardening (Weeks 10-11)
-- Epic 6: Azure Infrastructure & Security (Stories 6.7-6.8)
+- Epic 6: Azure Infrastructure & Security (Stories 6.8-6.9)
 - End-to-end testing
 - Performance optimization
 - Security hardening
@@ -1493,9 +1551,9 @@ So that **infrastructure for different environments (dev, staging, prod) is prop
 - Epic 3: 18 points
 - Epic 4: 34 points
 - Epic 5: 47 points
-- Epic 6: 46 points
+- Epic 6: 49 points
 
-**Total Story Points:** 193 points
+**Total Story Points:** 196 points
 
 **Estimated Timeline:** 12-14 weeks (assuming team velocity of 15-20 points per week)
 
