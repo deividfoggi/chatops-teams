@@ -92,9 +92,12 @@ echo -e "${BLUE}=== Checking App Service / Compute Quota ===${NC}"
 echo ""
 
 # Check Standard App Service Plan cores (PremiumV3)
+# Note: App Service uses VM quota families. PremiumV3 P1v3 uses Dv3-series
+# Check for standardDSv3Family or standardDv3Family depending on region
 if az vm list-usage --location "$REGION" &> /dev/null; then
-    STANDARD_CORES=$(az vm list-usage --location "$REGION" --query "[?contains(name.value, 'standardDSv3Family')] | [0].currentValue" -o tsv 2>/dev/null || echo "0")
-    STANDARD_LIMIT=$(az vm list-usage --location "$REGION" --query "[?contains(name.value, 'standardDSv3Family')] | [0].limit" -o tsv 2>/dev/null || echo "0")
+    # Try standardDSv3Family first (most common for PremiumV3)
+    STANDARD_CORES=$(az vm list-usage --location "$REGION" --query "[?contains(name.value, 'standardDSv3Family') || contains(name.value, 'standardDv3Family')] | [0].currentValue" -o tsv 2>/dev/null || echo "0")
+    STANDARD_LIMIT=$(az vm list-usage --location "$REGION" --query "[?contains(name.value, 'standardDSv3Family') || contains(name.value, 'standardDv3Family')] | [0].limit" -o tsv 2>/dev/null || echo "0")
     
     if [ "$STANDARD_CORES" != "0" ] && [ "$STANDARD_LIMIT" != "0" ]; then
         check_quota "App Service PremiumV3 Cores" "$STANDARD_CORES" "$STANDARD_LIMIT" "$REQUIRED_APP_SERVICE_CORES"
@@ -104,8 +107,9 @@ if az vm list-usage --location "$REGION" &> /dev/null; then
             results+=("INSUFFICIENT_APP_SERVICE_QUOTA")
         fi
     else
-        echo -e "${YELLOW}⚠️  WARNING${NC} | Could not determine App Service quota"
-        echo "  Please check manually: Azure Portal > Subscriptions > Usage + quotas"
+        echo -e "${YELLOW}⚠️  WARNING${NC} | Could not determine App Service quota automatically"
+        echo "  Please check manually: Azure Portal > Subscriptions > Usage + quotas > Compute"
+        echo "  Look for 'Standard DSv3 Family vCPUs' or 'Standard Dv3 Family vCPUs'"
         results+=("MANUAL_CHECK_REQUIRED")
     fi
 else
@@ -118,13 +122,14 @@ echo ""
 echo -e "${BLUE}=== Checking Public IP Address Quota ===${NC}"
 echo ""
 
-# Check Public IP addresses
+# Check Public IP addresses (filter by region to avoid false positives)
 if az network public-ip list --query "length(@)" -o tsv &> /dev/null; then
-    PUBLIC_IP_CURRENT=$(az network public-ip list --query "length(@)" -o tsv 2>/dev/null || echo "0")
+    # Count only public IPs in the target region
+    PUBLIC_IP_CURRENT=$(az network public-ip list --query "[?location=='$REGION'] | length(@)" -o tsv 2>/dev/null || echo "0")
     PUBLIC_IP_LIMIT=$(az network list-usages --location "$REGION" --query "[?name.value=='PublicIPAddresses'].limit | [0]" -o tsv 2>/dev/null || echo "0")
     
     if [ "$PUBLIC_IP_LIMIT" != "0" ]; then
-        check_quota "Public IP Addresses" "$PUBLIC_IP_CURRENT" "$PUBLIC_IP_LIMIT" "$REQUIRED_PUBLIC_IPS"
+        check_quota "Public IP Addresses (${REGION})" "$PUBLIC_IP_CURRENT" "$PUBLIC_IP_LIMIT" "$REQUIRED_PUBLIC_IPS"
         
         AVAILABLE_IPS=$((PUBLIC_IP_LIMIT - PUBLIC_IP_CURRENT))
         if [ $AVAILABLE_IPS -lt $REQUIRED_PUBLIC_IPS ]; then
