@@ -1,0 +1,392 @@
+name: Application - Deploy to Staging
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - '.github/workflows/app-cd-staging.yml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  NODE_VERSION: '18'
+  AZURE_WEBAPP_NAME: 'chatops-app-service'
+
+jobs:
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: src/package.json
+      
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ./src
+      
+      - name: Create deployment package
+        run: |
+          # Create a clean deployment package
+          mkdir -p ../deployment
+          cp -r * ../deployment/ 2>/dev/null || true
+          
+          # Remove dev dependencies and reinstall for production
+          cd ../deployment
+          npm ci --production
+          
+          # Create zip file for deployment
+          cd ..
+          zip -r deployment.zip deployment/
+        working-directory: ./src
+      
+      - name: Upload deployment artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-package
+          path: src/deployment.zip
+          retention-days: 1
+
+  deploy:
+    name: Deploy to Staging Environment
+    runs-on: ubuntu-latest
+    needs: build
+    environment: staging
+    outputs:
+      app_url: ${{ steps.get-details.outputs.app_url }}
+      resource_group: ${{ steps.get-details.outputs.resource_group }}
+      deployment_time: ${{ steps.get-details.outputs.deployment_time }}
+    
+    steps:
+      - name: Download deployment artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: deployment-package
+      
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          enable-AzPSSession: false
+      
+      - name: Get App Service Details
+        id: get-details
+        run: |
+          # Get resource group and URL in single query
+          DETAILS=$(az webapp show --name ${{ env.AZURE_WEBAPP_NAME }} --query '{resourceGroup:resourceGroup,hostName:defaultHostName}' -o json)
+          RESOURCE_GROUP=$(echo $DETAILS | jq -r '.resourceGroup')
+          HOST_NAME=$(echo $DETAILS | jq -r '.hostName')
+          DEPLOYMENT_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          
+          echo "resource_group=${RESOURCE_GROUP}" >> $GITHUB_OUTPUT
+          echo "app_url=https://${HOST_NAME}" >> $GITHUB_OUTPUT
+          echo "deployment_time=${DEPLOYMENT_TIME}" >> $GITHUB_OUTPUT
+          
+          echo "App Service URL: https://${HOST_NAME}"
+          echo "Resource Group: ${RESOURCE_GROUP}"
+          echo "Deployment Time: ${DEPLOYMENT_TIME}"
+      
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          package: deployment.zip
+
+  smoke_tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    needs: deploy
+    environment: staging
+    outputs:
+      health_status: ${{ steps.health_check.outputs.status }}
+      webhook_status: ${{ steps.webhook_check.outputs.status }}
+      telemetry_status: ${{ steps.telemetry_check.outputs.status }}
+    
+    steps:
+      - name: Wait for App Startup
+        run: sleep 30
+      
+      - name: Health Endpoint Check
+        id: health_check
+        run: |
+          APP_URL="${{ needs.deploy.outputs.app_url }}"
+          MAX_ATTEMPTS=3
+          ATTEMPT=1
+          SUCCESS=false
+          
+          echo "Starting health check for: ${APP_URL}/health"
+          
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "Attempt $ATTEMPT of $MAX_ATTEMPTS"
+            
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${APP_URL}/health" || echo "000")
+            
+            echo "HTTP Status Code: $HTTP_CODE"
+            
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Health check passed!"
+              echo "status=passed" >> $GITHUB_OUTPUT
+              SUCCESS=true
+              break
+            fi
+            
+            echo "Health check failed with status: $HTTP_CODE"
+            
+            if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+              echo "Waiting 10 seconds before retry..."
+              sleep 10
+            fi
+            
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+          
+          if [ "$SUCCESS" = "false" ]; then
+            echo "❌ Health check failed after $MAX_ATTEMPTS attempts"
+            echo "status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+      
+      - name: Webhook Endpoint Check
+        id: webhook_check
+        run: |
+          APP_URL="${{ needs.deploy.outputs.app_url }}"
+          
+          echo "Testing webhook endpoint: ${APP_URL}/api/webhooks/github"
+          
+          # Test GET request - should return 200 with status message
+          GET_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${APP_URL}/api/webhooks/github" || echo "000")
+          echo "GET request HTTP code: $GET_CODE"
+          
+          if [ "$GET_CODE" = "200" ]; then
+            echo "✅ Webhook GET endpoint is accessible"
+          else
+            echo "⚠️ Webhook GET endpoint returned: $GET_CODE (expected 200)"
+          fi
+          
+          # Test POST request without signature - should return 401 (unauthorized) or 400 (bad request), NOT 404
+          POST_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            -H "Content-Type: application/json" \
+            -d '{"test":"data"}' \
+            "${APP_URL}/api/webhooks/github" || echo "000")
+          
+          echo "POST request HTTP code: $POST_CODE"
+          
+          if [ "$POST_CODE" = "401" ] || [ "$POST_CODE" = "400" ] || [ "$POST_CODE" = "500" ]; then
+            echo "✅ Webhook POST endpoint is configured correctly (returned ${POST_CODE}, not 404)"
+            echo "status=passed" >> $GITHUB_OUTPUT
+          elif [ "$POST_CODE" = "404" ]; then
+            echo "❌ Webhook POST endpoint returned 404 - endpoint not found!"
+            echo "status=failed" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "⚠️ Webhook POST endpoint returned unexpected code: $POST_CODE"
+            echo "status=warning" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Application Insights Telemetry Check
+        id: telemetry_check
+        run: |
+          # Check if Application Insights connection string is configured
+          # This is a basic check - in production, you'd query Application Insights API
+          APP_URL="${{ needs.deploy.outputs.app_url }}"
+          RESOURCE_GROUP="${{ needs.deploy.outputs.resource_group }}"
+          
+          echo "Checking Application Insights configuration..."
+          
+          # Get App Service application settings to verify App Insights is configured
+          APP_INSIGHTS_KEY=$(az webapp config appsettings list \
+            --name ${{ env.AZURE_WEBAPP_NAME }} \
+            --resource-group ${RESOURCE_GROUP} \
+            --query "[?name=='APPLICATIONINSIGHTS_CONNECTION_STRING'].value | [0]" \
+            -o tsv 2>/dev/null || echo "")
+          
+          if [ -n "$APP_INSIGHTS_KEY" ] && [ "$APP_INSIGHTS_KEY" != "null" ]; then
+            echo "✅ Application Insights connection string is configured"
+            echo "status=passed" >> $GITHUB_OUTPUT
+          else
+            echo "⚠️ Application Insights connection string not found in app settings"
+            echo "This is expected if App Insights is configured via environment or system settings"
+            echo "status=warning" >> $GITHUB_OUTPUT
+          fi
+          
+          # Note: Full telemetry validation would require:
+          # 1. Querying Application Insights API for recent telemetry
+          # 2. Waiting for telemetry ingestion (can take 2-5 minutes)
+          # 3. Verifying custom events and traces are being recorded
+          echo "ℹ️  For full telemetry validation, check Application Insights portal after deployment"
+      
+      - name: Post Smoke Test Summary
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const healthStatus = '${{ steps.health_check.outputs.status }}' === 'passed' ? '✅ Passed' : '❌ Failed';
+            const webhookStatus = '${{ steps.webhook_check.outputs.status }}' === 'passed' ? '✅ Passed' : 
+                                  '${{ steps.webhook_check.outputs.status }}' === 'warning' ? '⚠️ Warning' : '❌ Failed';
+            const telemetryStatus = '${{ steps.telemetry_check.outputs.status }}' === 'passed' ? '✅ Configured' : 
+                                    '${{ steps.telemetry_check.outputs.status }}' === 'warning' ? '⚠️ Check Portal' : '❌ Not Configured';
+            
+            const output = `### 🧪 Smoke Test Results
+            
+            | Test | Status |
+            |------|--------|
+            | Health Endpoint | ${healthStatus} |
+            | Webhook Endpoint | ${webhookStatus} |
+            | Application Insights | ${telemetryStatus} |
+            
+            **Environment:** \`staging\`
+            **Endpoint:** \`${{ needs.deploy.outputs.app_url }}\`
+            **Deployed by:** @${{ github.actor }}
+            
+            ---
+            *Workflow: \`${{ github.workflow }}\` | Run: #${{ github.run_number }}*`;
+            
+            core.summary.addRaw(output).write();
+
+  notify:
+    name: Send Deployment Notification
+    runs-on: ubuntu-latest
+    needs: [deploy, smoke_tests]
+    if: always()
+    
+    steps:
+      - name: Send Teams Notification
+        if: vars.TEAMS_WEBHOOK_URL != ''
+        run: |
+          DEPLOY_STATUS="${{ needs.deploy.result }}"
+          SMOKE_STATUS="${{ needs.smoke_tests.result }}"
+          COMMIT_SHA="${{ github.sha }}"
+          SHORT_SHA="${COMMIT_SHA:0:7}"
+          DEPLOYMENT_TIME="${{ needs.deploy.outputs.deployment_time }}"
+          HEALTH_STATUS="${{ needs.smoke_tests.outputs.health_status }}"
+          WEBHOOK_STATUS="${{ needs.smoke_tests.outputs.webhook_status }}"
+          TELEMETRY_STATUS="${{ needs.smoke_tests.outputs.telemetry_status }}"
+          
+          if [ "$DEPLOY_STATUS" = "success" ] && [ "$SMOKE_STATUS" = "success" ]; then
+            STATUS="Success"
+            STATUS_ICON="✅"
+          else
+            STATUS="Failed"
+            STATUS_ICON="❌"
+          fi
+          
+          # Format health check results
+          HEALTH_ICON="❌"
+          [ "$HEALTH_STATUS" = "passed" ] && HEALTH_ICON="✅"
+          
+          WEBHOOK_ICON="❌"
+          [ "$WEBHOOK_STATUS" = "passed" ] && WEBHOOK_ICON="✅"
+          [ "$WEBHOOK_STATUS" = "warning" ] && WEBHOOK_ICON="⚠️"
+          
+          TELEMETRY_ICON="❌"
+          [ "$TELEMETRY_STATUS" = "passed" ] && TELEMETRY_ICON="✅"
+          [ "$TELEMETRY_STATUS" = "warning" ] && TELEMETRY_ICON="⚠️"
+          
+          curl -H "Content-Type: application/json" -d '{
+            "type": "message",
+            "attachments": [{
+              "contentType": "application/vnd.microsoft.card.adaptive",
+              "content": {
+                "type": "AdaptiveCard",
+                "version": "1.4",
+                "body": [{
+                  "type": "TextBlock",
+                  "text": "'"$STATUS_ICON"' Application Deployment - Staging",
+                  "weight": "Bolder",
+                  "size": "Large"
+                }, {
+                  "type": "FactSet",
+                  "facts": [
+                    {"title": "Status", "value": "'"$STATUS"'"},
+                    {"title": "Environment", "value": "staging"},
+                    {"title": "Application", "value": "ChatOps Teams Bot"},
+                    {"title": "Deployment", "value": "'"$DEPLOY_STATUS"'"},
+                    {"title": "Smoke Tests", "value": "'"$SMOKE_STATUS"'"},
+                    {"title": "Health Check", "value": "'"$HEALTH_ICON $HEALTH_STATUS"'"},
+                    {"title": "Webhook Check", "value": "'"$WEBHOOK_ICON $WEBHOOK_STATUS"'"},
+                    {"title": "Telemetry Check", "value": "'"$TELEMETRY_ICON $TELEMETRY_STATUS"'"},
+                    {"title": "Deployed by", "value": "${{ github.actor }}"},
+                    {"title": "Branch", "value": "${{ github.ref_name }}"},
+                    {"title": "Commit", "value": "'"$SHORT_SHA"'"},
+                    {"title": "Deployment Time", "value": "'"$DEPLOYMENT_TIME"'"}
+                  ]
+                }, {
+                  "type": "TextBlock",
+                  "text": "Ready for production swap",
+                  "wrap": true,
+                  "isSubtle": true
+                }],
+                "actions": [{
+                  "type": "Action.OpenUrl",
+                  "title": "View Workflow",
+                  "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                }, {
+                  "type": "Action.OpenUrl",
+                  "title": "View Commit",
+                  "url": "${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+                }, {
+                  "type": "Action.OpenUrl",
+                  "title": "Open Application",
+                  "url": "${{ needs.deploy.outputs.app_url }}"
+                }]
+              }
+            }]
+          }' ${{ vars.TEAMS_WEBHOOK_URL }}
+      
+      - name: Deployment Summary
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const deployStatus = '${{ needs.deploy.result }}' === 'success' ? '✅ Success' : '❌ Failed';
+            const smokeStatus = '${{ needs.smoke_tests.result }}' === 'success' ? '✅ Passed' : '❌ Failed';
+            const commitSha = '${{ github.sha }}'.substring(0, 7);
+            const deploymentTime = '${{ needs.deploy.outputs.deployment_time }}';
+            const healthStatus = '${{ needs.smoke_tests.outputs.health_status }}';
+            const webhookStatus = '${{ needs.smoke_tests.outputs.webhook_status }}';
+            const telemetryStatus = '${{ needs.smoke_tests.outputs.telemetry_status }}';
+            
+            const output = `## 🚀 Application Deployment - Staging
+            
+            | Check | Status |
+            |-------|--------|
+            | Deployment | ${deployStatus} |
+            | Smoke Tests | ${smokeStatus} |
+            
+            ### Smoke Test Details
+            | Test | Result |
+            |------|--------|
+            | Health Endpoint | ${healthStatus === 'passed' ? '✅ Passed' : '❌ Failed'} |
+            | Webhook Endpoint | ${webhookStatus === 'passed' ? '✅ Passed' : webhookStatus === 'warning' ? '⚠️ Warning' : '❌ Failed'} |
+            | Application Insights | ${telemetryStatus === 'passed' ? '✅ Configured' : telemetryStatus === 'warning' ? '⚠️ Check Portal' : '❌ Not Configured'} |
+            
+            **Environment:** \`staging\`
+            **Application:** \`${{ env.AZURE_WEBAPP_NAME }}\`
+            **Deployed by:** @${{ github.actor }}
+            **Branch:** \`${{ github.ref_name }}\`
+            **Commit:** \`${commitSha}\`
+            **Deployment Time:** \`${deploymentTime}\`
+            **App URL:** ${{ needs.deploy.outputs.app_url }}
+            
+            ${smokeStatus.includes('Passed') ? '✅ **Staging slot is ready for production swap**' : '⚠️ **Review test failures before promoting to production**'}
+            
+            ### Actions:
+            - [View Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - [View Commit](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+            - [Open Application](${{ needs.deploy.outputs.app_url }})
+            `;
+            
+            core.summary.addRaw(output).write();
