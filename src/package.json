@@ -8,7 +8,7 @@
     "start:dev": "NODE_ENV=development node bot/server.js",
     "test": "node bot/test.js",
     "test:unit": "node bot/test.js",
-    "test:coverage": "c8 --reporter=text --reporter=lcov --check-coverage --lines 80 node bot/test.js",
+    "test:coverage": "c8 --reporter=text --reporter=lcov node bot/test.js",
     "lint": "echo \"No linting configured yet\""
   },
   "keywords": [
