@@ -157,21 +157,35 @@ function main() {
   console.log(`${colors.cyan}║   ChatOps Teams - Test Suite Runner      ║${colors.reset}`);
   console.log(`${colors.cyan}╚═══════════════════════════════════════════╝${colors.reset}\n`);
 
+  // Check for category filter argument
+  const categoryFilter = process.argv[2];
+  const validCategories = ['unit', 'integration', 'performance'];
+  
+  if (categoryFilter && !validCategories.includes(categoryFilter)) {
+    console.log(`${colors.red}Error: Invalid category '${categoryFilter}'${colors.reset}`);
+    console.log(`Valid categories: ${validCategories.join(', ')}\n`);
+    process.exit(1);
+  }
+
   let allPassed = true;
-
-  // Run unit tests
-  if (!runCategory('unit', testCategories.unit)) {
-    allPassed = false;
+  
+  // Run only specified category or all categories
+  if (!categoryFilter || categoryFilter === 'unit') {
+    if (!runCategory('unit', testCategories.unit)) {
+      allPassed = false;
+    }
   }
 
-  // Run integration tests
-  if (!runCategory('integration', testCategories.integration)) {
-    allPassed = false;
+  if (!categoryFilter || categoryFilter === 'integration') {
+    if (!runCategory('integration', testCategories.integration)) {
+      allPassed = false;
+    }
   }
 
-  // Run performance tests
-  if (!runCategory('performance', testCategories.performance)) {
-    allPassed = false;
+  if (!categoryFilter || categoryFilter === 'performance') {
+    if (!runCategory('performance', testCategories.performance)) {
+      allPassed = false;
+    }
   }
 
   // Print final summary

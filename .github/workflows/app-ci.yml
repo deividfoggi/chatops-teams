@@ -66,15 +66,30 @@ jobs:
       - name: Generate coverage report
         id: coverage
         run: |
-          npm run test:coverage || true
+          # Run tests with coverage (allow failure for informational coverage)
+          set +e  # Don't exit on error
+          npm run test:coverage
+          COVERAGE_EXIT_CODE=$?
+          set -e  # Re-enable exit on error
+          
           # Extract coverage percentages using Node.js script
           if [ -f coverage/coverage-summary.json ]; then
             node bot/extract-coverage.js >> $GITHUB_ENV
+            echo "COVERAGE_AVAILABLE=true" >> $GITHUB_ENV
           else
             echo "COVERAGE_LINES=0" >> $GITHUB_ENV
             echo "COVERAGE_FUNCTIONS=0" >> $GITHUB_ENV
             echo "COVERAGE_BRANCHES=0" >> $GITHUB_ENV
             echo "COVERAGE_STATEMENTS=0" >> $GITHUB_ENV
+            echo "COVERAGE_AVAILABLE=false" >> $GITHUB_ENV
+          fi
+          
+          # Report coverage status but don't fail the build
+          # (Coverage threshold is informational while tests are expanded)
+          if [ $COVERAGE_EXIT_CODE -ne 0 ]; then
+            echo "⚠️ Coverage threshold not met or tests failed"
+          else
+            echo "✅ Coverage threshold met"
           fi
         working-directory: ./src
         continue-on-error: true

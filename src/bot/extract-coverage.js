@@ -7,7 +7,9 @@
 const fs = require('fs');
 const path = require('path');
 
-const coveragePath = path.join(__dirname, '../coverage/coverage-summary.json');
+// Allow override via environment variable for testing
+const coverageDir = process.env.COVERAGE_DIR || path.join(__dirname, '../coverage');
+const coveragePath = path.join(coverageDir, 'coverage-summary.json');
 
 try {
   if (!fs.existsSync(coveragePath)) {
