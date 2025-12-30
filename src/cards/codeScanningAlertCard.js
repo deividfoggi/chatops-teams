@@ -16,7 +16,7 @@ function getSeverityColor(severity) {
   const colors = {
     critical: 'attention', // Red
     high: 'warning', // Orange/Yellow
-    medium: 'good', // Green
+    medium: 'accent', // Blue (neutral/caution)
     low: 'default', // Gray
     warning: 'warning',
     note: 'default',

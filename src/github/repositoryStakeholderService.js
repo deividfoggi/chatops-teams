@@ -90,6 +90,7 @@ class RepositoryStakeholderService {
         }
 
         if (owners.length > 0) {
+          // TODO: Replace console.log with structured logging framework (Winston/Bunyan)
           console.log(`Found ${owners.length} owners from custom properties for ${owner}/${repo}`);
         }
       } catch (error) {

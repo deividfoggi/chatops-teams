@@ -65,6 +65,7 @@ class CodeScanningNotificationService {
     const { alert, repository, metadata, authorInfo } = alertData;
 
     try {
+      // TODO: Replace console.log with structured logging framework (Winston/Bunyan)
       console.log(`Processing code scanning alert notification for ${repository.full_name} alert #${alert.number}`);
 
       // Step 1: Identify all stakeholders

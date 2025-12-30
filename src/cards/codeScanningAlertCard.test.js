@@ -18,7 +18,7 @@ console.log('Test 1: Severity color mapping');
 try {
   assert.strictEqual(getSeverityColor('critical'), 'attention');
   assert.strictEqual(getSeverityColor('high'), 'warning');
-  assert.strictEqual(getSeverityColor('medium'), 'good');
+  assert.strictEqual(getSeverityColor('medium'), 'accent');
   assert.strictEqual(getSeverityColor('low'), 'default');
   assert.strictEqual(getSeverityColor('unknown'), 'default');
   console.log('✅ PASSED\n');
