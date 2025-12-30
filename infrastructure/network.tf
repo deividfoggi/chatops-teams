@@ -338,6 +338,15 @@ resource "azurerm_role_assignment" "flow_logs_storage" {
   principal_id         = azurerm_user_assigned_identity.nsg_flow_logs.principal_id
 }
 
+# Grant Terraform execution principal access to storage account
+# This is required for Terraform to manage the storage account when shared key access is disabled
+resource "azurerm_role_assignment" "terraform_storage_access" {
+  scope                = azurerm_storage_account.nsg_flow_logs.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = data.azurerm_client_config.current.object_id
+  description          = "Allows Terraform to manage storage account with Azure AD authentication"
+}
+
 # -----------------------------------------------------------------------------
 # Network Watcher Resource Group
 # -----------------------------------------------------------------------------
