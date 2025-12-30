@@ -8,6 +8,7 @@
  */
 
 const crypto = require('crypto');
+const { RepositoryMetadataCache } = require('../cache');
 
 /**
  * Simple in-memory cache with TTL
@@ -154,6 +155,8 @@ class GitHubClient {
    * @param {string} [config.token] - Personal access token (alternative to App auth)
    * @param {string} [config.apiUrl='https://api.github.com'] - GitHub API base URL
    * @param {Object} [config.telemetryClient] - Application Insights client
+   * @param {Object} [config.cache] - External cache instance (RepositoryMetadataCache)
+   * @param {boolean} [config.useDistributedCache=true] - Use distributed cache if available
    */
   constructor(config = {}) {
     this.config = {
@@ -163,8 +166,22 @@ class GitHubClient {
       token: config.token || process.env.GITHUB_TOKEN,
       apiUrl: config.apiUrl || 'https://api.github.com',
       telemetryClient: config.telemetryClient,
+      useDistributedCache: config.useDistributedCache !== undefined ? config.useDistributedCache : true,
     };
 
+    // Use provided distributed cache or create a new one
+    if (config.cache) {
+      this.distributedCache = config.cache;
+    } else if (this.config.useDistributedCache) {
+      this.distributedCache = new RepositoryMetadataCache({
+        telemetryClient: this.config.telemetryClient,
+        enableFallback: true,
+      });
+    } else {
+      this.distributedCache = null;
+    }
+
+    // Keep simple in-memory cache for backward compatibility
     this.cache = new Cache(300000); // 5 minutes
     this.rateLimiter = new RateLimiter();
     this.installationToken = null;
@@ -340,14 +357,21 @@ class GitHubClient {
    * @param {string} path - API path (e.g., '/repos/owner/repo')
    * @param {Object} [body] - Request body
    * @param {boolean} [useCache=true] - Whether to use cache for GET requests
+   * @param {Object} [headers] - Request headers (for cache bypass detection)
    * @returns {Promise<Object>} Response data
    */
-  async request(method, path, body = null, useCache = true) {
+  async request(method, path, body = null, useCache = true, headers = {}) {
     const url = `${this.config.apiUrl}${path}`;
-    const cacheKey = `${method}:${path}`;
+    const cacheKey = `github:${method}:${path}`;
 
-    // Check cache for GET requests
-    if (method === 'GET' && useCache) {
+    // Check distributed cache for GET requests
+    if (method === 'GET' && useCache && this.distributedCache) {
+      const cached = await this.distributedCache.get(cacheKey, headers);
+      if (cached) {
+        return cached;
+      }
+    } else if (method === 'GET' && useCache) {
+      // Fall back to in-memory cache if distributed cache not available
       const cached = this.cache.get(cacheKey);
       if (cached) {
         return cached;
@@ -357,16 +381,21 @@ class GitHubClient {
     // Check if we should throttle
     if (this.rateLimiter.shouldThrottle()) {
       return this.rateLimiter.queueRequest(async () => {
-        const headers = await this.getAuthHeaders();
-        return this._makeRequest(method, url, body, headers);
+        const authHeaders = await this.getAuthHeaders();
+        return this._makeRequest(method, url, body, authHeaders);
       });
     }
 
-    const headers = await this.getAuthHeaders();
-    const data = await this._makeRequest(method, url, body, headers);
+    const authHeaders = await this.getAuthHeaders();
+    const data = await this._makeRequest(method, url, body, authHeaders);
 
-    // Cache GET requests
+    // Cache GET requests in both caches
     if (method === 'GET' && useCache) {
+      // Store in distributed cache
+      if (this.distributedCache) {
+        await this.distributedCache.set(cacheKey, data);
+      }
+      // Also store in in-memory cache for fastest access
       this.cache.set(cacheKey, data);
     }
 
@@ -562,6 +591,56 @@ class GitHubClient {
    */
   clearCache() {
     this.cache.clear();
+    if (this.distributedCache) {
+      this.distributedCache.clearPattern('github:*');
+    }
+  }
+
+  /**
+   * Gets cache metrics from distributed cache
+   * 
+   * @returns {Object} Cache metrics
+   */
+  getCacheMetrics() {
+    if (this.distributedCache) {
+      return this.distributedCache.getMetrics();
+    }
+    return {
+      message: 'Distributed cache not available',
+      usingInMemoryCache: true,
+    };
+  }
+
+  /**
+   * Warm cache with repository data
+   * 
+   * @param {Array<Object>} repositories - Array of {owner, repo}
+   * @returns {Promise<number>} Number of repositories cached
+   */
+  async warmRepositoryCache(repositories) {
+    if (!this.distributedCache) {
+      console.warn('Distributed cache not available for cache warming');
+      return 0;
+    }
+
+    console.log(`Warming cache for ${repositories.length} repositories...`);
+    
+    const repositoryData = [];
+    for (const { owner, repo } of repositories) {
+      try {
+        const data = await this.getRepository(owner, repo);
+        const key = this.distributedCache.getRepositoryKey(owner, repo);
+        repositoryData.push({ owner, repo, data });
+      } catch (error) {
+        console.warn(`Failed to fetch repository ${owner}/${repo} for cache warming:`, error.message);
+      }
+    }
+
+    return await this.distributedCache.warmCache(repositoryData.map(r => ({
+      owner: r.owner,
+      repo: r.repo,
+      data: r.data,
+    })));
   }
 
   /**
