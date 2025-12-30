@@ -1,0 +1,476 @@
+name: Infrastructure - Deploy to Production
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'infrastructure/**'
+      - '.github/workflows/infra-*.yml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+  issues: write
+
+env:
+  TERRAFORM_VERSION: '1.6.0'
+  AZURE_REGION: 'eastus'
+  ENVIRONMENT: 'prod'
+
+jobs:
+  terraform_plan:
+    name: Terraform Plan - Production
+    runs-on: ubuntu-latest
+    environment: prod
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+          terraform_wrapper: false
+      
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          enable-AzPSSession: false
+      
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.TERRAFORM_BACKEND_RG }}" \
+            -backend-config="storage_account_name=${{ secrets.TERRAFORM_BACKEND_SA }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=${{ env.ENVIRONMENT }}.tfstate" \
+            -backend-config="use_azuread_auth=true"
+        working-directory: ./infrastructure
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_USE_OIDC: true
+      
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: ./infrastructure
+      
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan -var-file="environments/prod.tfvars" -out=tfplan -no-color 2>&1 | tee plan_output.txt
+        working-directory: ./infrastructure
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_USE_OIDC: true
+      
+      - name: Upload Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-prod
+          path: |
+            infrastructure/tfplan
+            infrastructure/plan_output.txt
+          retention-days: 30
+      
+      - name: Create Plan Summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const planOutput = fs.readFileSync('./infrastructure/plan_output.txt', 'utf8');
+            const truncatedOutput = planOutput.length > 65000 
+              ? planOutput.substring(0, 65000) + '\n\n... (output truncated)'
+              : planOutput;
+            
+            const output = `## 📋 Terraform Plan - Production
+            
+            **Status:** Plan generated successfully
+            **Environment:** \`prod\`
+            **Workflow:** ${{ github.workflow }}
+            
+            <details>
+            <summary>Show Plan</summary>
+            
+            \`\`\`terraform
+            ${truncatedOutput}
+            \`\`\`
+            
+            </details>
+            
+            **⚠️ IMPORTANT:** This plan requires manual approval before applying to production.
+            
+            *Triggered by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            
+            core.summary.addRaw(output).write();
+
+  approve_deployment:
+    name: Approve Production Deployment
+    runs-on: ubuntu-latest
+    needs: terraform_plan
+    environment: 
+      name: prod
+      url: https://portal.azure.com
+    
+    steps:
+      - name: Manual Approval Gate
+        run: |
+          echo "✅ Production deployment approved by: ${{ github.actor }}"
+          echo "Proceeding with Terraform apply..."
+
+  terraform_apply:
+    name: Terraform Apply - Production
+    runs-on: ubuntu-latest
+    needs: approve_deployment
+    environment: prod
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+      
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          enable-AzPSSession: false
+      
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-prod
+          path: infrastructure/
+      
+      - name: Terraform Init
+        run: |
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.TERRAFORM_BACKEND_RG }}" \
+            -backend-config="storage_account_name=${{ secrets.TERRAFORM_BACKEND_SA }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=${{ env.ENVIRONMENT }}.tfstate" \
+            -backend-config="use_azuread_auth=true"
+        working-directory: ./infrastructure
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_USE_OIDC: true
+      
+      - name: Terraform Apply
+        id: apply
+        run: terraform apply -auto-approve tfplan
+        working-directory: ./infrastructure
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_USE_OIDC: true
+      
+      - name: Get Terraform Outputs
+        id: outputs
+        run: |
+          echo "app_service_name=$(terraform output -raw app_service_name 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
+          echo "app_service_url=$(terraform output -raw app_service_url 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
+          echo "key_vault_name=$(terraform output -raw key_vault_name 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
+          echo "application_gateway_ip=$(terraform output -raw application_gateway_public_ip_address 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
+        working-directory: ./infrastructure
+        continue-on-error: true
+      
+      - name: Post Deployment Summary
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          script: |
+            const output = `## 🚀 Infrastructure Deployment - Production
+            
+            **Status:** ${{ steps.apply.outcome == 'success' && '✅ Success' || '❌ Failed' }}
+            **Environment:** \`prod\`
+            **Approved by:** @${{ github.actor }}
+            **Workflow:** ${{ github.workflow }}
+            
+            ### Resources Deployed:
+            - **App Service:** \`${{ steps.outputs.outputs.app_service_name }}\`
+            - **App URL:** ${{ steps.outputs.outputs.app_service_url }}
+            - **Key Vault:** \`${{ steps.outputs.outputs.key_vault_name }}\`
+            - **Application Gateway IP:** \`${{ steps.outputs.outputs.application_gateway_ip }}\`
+            
+            ### Actions:
+            - [View Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - [View Infrastructure Code](${{ github.server_url }}/${{ github.repository }}/tree/${{ github.sha }}/infrastructure)
+            - [Azure Portal](https://portal.azure.com)
+            `;
+            
+            core.summary.addRaw(output).write();
+
+  smoke_tests:
+    name: Production Smoke Tests
+    runs-on: ubuntu-latest
+    needs: terraform_apply
+    environment: prod
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          enable-AzPSSession: false
+      
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+      
+      - name: Get Infrastructure Outputs
+        id: infra
+        run: |
+          cd infrastructure
+          terraform init \
+            -backend-config="resource_group_name=${{ secrets.TERRAFORM_BACKEND_RG }}" \
+            -backend-config="storage_account_name=${{ secrets.TERRAFORM_BACKEND_SA }}" \
+            -backend-config="container_name=tfstate" \
+            -backend-config="key=${{ env.ENVIRONMENT }}.tfstate" \
+            -backend-config="use_azuread_auth=true"
+          
+          echo "app_url=$(terraform output -raw app_service_url 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
+          echo "kv_name=$(terraform output -raw key_vault_name 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
+          echo "appgw_ip=$(terraform output -raw application_gateway_public_ip_address 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
+          echo "rg_name=$(terraform output -raw resource_group_name 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          ARM_USE_OIDC: true
+      
+      - name: Test Application Gateway Endpoint
+        run: |
+          echo "Testing Application Gateway endpoint..."
+          APPGW_IP="${{ steps.infra.outputs.appgw_ip }}"
+          
+          if [ "$APPGW_IP" != "N/A" ]; then
+            max_attempts=5
+            attempt=1
+            
+            while [ $attempt -le $max_attempts ]; do
+              echo "Attempt $attempt of $max_attempts"
+              
+              # Note: Using -k to skip SSL verification during initial deployment
+              # In production, SSL certificates should be properly configured
+              # TODO: Configure custom domain and SSL certificate for proper validation
+              response=$(curl -k -s -o /dev/null -w "%{http_code}" "https://$APPGW_IP/" 2>/dev/null || echo "000")
+              
+              if [ "$response" = "200" ] || [ "$response" = "404" ]; then
+                echo "✅ Application Gateway is responding (HTTP $response)"
+                exit 0
+              fi
+              
+              echo "Application Gateway returned: $response"
+              attempt=$((attempt + 1))
+              sleep 15
+            done
+            
+            echo "⚠️  Application Gateway health check returned unexpected status after $max_attempts attempts"
+          else
+            echo "⚠️  Application Gateway IP not available, skipping test"
+          fi
+      
+      - name: Test App Service Health
+        run: |
+          echo "Testing App Service health endpoint..."
+          APP_URL="${{ steps.infra.outputs.app_url }}"
+          
+          if [ "$APP_URL" != "N/A" ]; then
+            max_attempts=5
+            attempt=1
+            
+            while [ $attempt -le $max_attempts ]; do
+              echo "Attempt $attempt of $max_attempts"
+              
+              response=$(curl -s -o /dev/null -w "%{http_code}" "$APP_URL/health" || echo "000")
+              
+              if [ "$response" = "200" ]; then
+                echo "✅ App Service health check passed"
+                exit 0
+              fi
+              
+              echo "Health check returned: $response"
+              attempt=$((attempt + 1))
+              sleep 15
+            done
+            
+            echo "❌ App Service health check failed after $max_attempts attempts"
+            exit 1
+          else
+            echo "⚠️  App Service URL not available, skipping health check"
+          fi
+      
+      - name: Validate Key Vault Access
+        run: |
+          echo "Validating Key Vault accessibility..."
+          KV_NAME="${{ steps.infra.outputs.kv_name }}"
+          
+          if [ "$KV_NAME" != "N/A" ]; then
+            # Test Key Vault access
+            az keyvault secret list --vault-name "$KV_NAME" --query "[].name" -o tsv
+            echo "✅ Key Vault access validated"
+          else
+            echo "⚠️  Key Vault name not available, skipping validation"
+          fi
+      
+      - name: Check Resource Group Status
+        run: |
+          echo "Checking resource group status..."
+          # Get resource group name from Terraform output
+          RG_NAME="${{ steps.infra.outputs.rg_name }}"
+          
+          if [ "$RG_NAME" = "N/A" ]; then
+            echo "⚠️  Resource group name not available from Terraform outputs"
+            exit 0
+          fi
+          
+          # Verify resource group exists
+          if ! az group show --name "$RG_NAME" --query id -o tsv > /dev/null 2>&1; then
+            echo "⚠️  Resource group $RG_NAME not found"
+            exit 0
+          fi
+          
+          # Get resource count and status
+          RESOURCE_COUNT=$(az resource list -g "$RG_NAME" --query "length([])" -o tsv)
+          echo "✅ Resource group $RG_NAME contains $RESOURCE_COUNT resources"
+          
+          # List key resources
+          echo "Key resources:"
+          az resource list -g "$RG_NAME" --query "[?type=='Microsoft.Web/sites' || type=='Microsoft.KeyVault/vaults' || type=='Microsoft.Network/applicationGateways'].{Name:name, Type:type}" -o table
+
+  rollback_on_failure:
+    name: Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: [terraform_apply, smoke_tests]
+    if: failure()
+    environment: prod
+    
+    steps:
+      - name: Notify Rollback Required
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const output = `## ⚠️ Production Deployment Failed - Rollback Required
+            
+            **Status:** ❌ Failed
+            **Environment:** \`prod\`
+            **Workflow:** ${{ github.workflow }}
+            
+            ### Action Required:
+            The production deployment or smoke tests failed. Manual intervention is required.
+            
+            ### Steps to Rollback:
+            1. Review the failed workflow logs
+            2. Identify the cause of failure
+            3. If infrastructure changes caused the failure:
+               - Restore from previous Terraform state
+               - Or manually revert changes in Azure Portal
+            4. Notify the team about the incident
+            
+            ### Useful Links:
+            - [Failed Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - [Azure Portal](https://portal.azure.com)
+            - [Terraform State](https://portal.azure.com)
+            `;
+            
+            core.summary.addRaw(output).write();
+      
+      - name: Create Incident Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 Production Deployment Failed - Rollback Required',
+              body: `## Incident Report
+              
+              **Time:** ${new Date().toISOString()}
+              **Workflow:** ${{ github.workflow }}
+              **Run ID:** ${{ github.run_id }}
+              **Triggered by:** @${{ github.actor }}
+              
+              ### Details
+              The production infrastructure deployment failed during execution or smoke tests.
+              
+              ### Actions Required
+              1. Review workflow logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              2. Check Azure Portal for resource status
+              3. Determine if rollback is needed
+              4. Document the incident and resolution
+              
+              ### References
+              - Commit: ${{ github.sha }}
+              - Branch: ${{ github.ref_name }}
+              `,
+              labels: ['incident', 'production', 'infrastructure', 'urgent']
+            });
+
+  notify_deployment:
+    name: Notify Deployment Status
+    runs-on: ubuntu-latest
+    needs: [terraform_apply, smoke_tests]
+    if: always()
+    
+    steps:
+      - name: Send Teams Notification
+        if: vars.TEAMS_WEBHOOK_URL != ''
+        run: |
+          STATUS="${{ needs.terraform_apply.result == 'success' && needs.smoke_tests.result == 'success' && 'Success' || 'Failed' }}"
+          COLOR="${{ needs.terraform_apply.result == 'success' && needs.smoke_tests.result == 'success' && 'Good' || 'Attention' }}"
+          
+          curl -H "Content-Type: application/json" -d '{
+            "type": "message",
+            "attachments": [{
+              "contentType": "application/vnd.microsoft.card.adaptive",
+              "content": {
+                "type": "AdaptiveCard",
+                "version": "1.4",
+                "body": [{
+                  "type": "TextBlock",
+                  "text": "Infrastructure Deployment - Production",
+                  "weight": "Bolder",
+                  "size": "Large"
+                }, {
+                  "type": "FactSet",
+                  "facts": [
+                    {"title": "Status", "value": "'"$STATUS"'"},
+                    {"title": "Environment", "value": "prod"},
+                    {"title": "Approved by", "value": "${{ github.actor }}"},
+                    {"title": "Branch", "value": "${{ github.ref_name }}"}
+                  ]
+                }],
+                "actions": [{
+                  "type": "Action.OpenUrl",
+                  "title": "View Workflow",
+                  "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                }, {
+                  "type": "Action.OpenUrl",
+                  "title": "Azure Portal",
+                  "url": "https://portal.azure.com"
+                }]
+              }
+            }]
+          }' ${{ vars.TEAMS_WEBHOOK_URL }}

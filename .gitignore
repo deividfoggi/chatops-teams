@@ -27,6 +27,7 @@ Thumbs.db
 # Secrets (never commit these)
 *.tfvars
 !example.tfvars
+!infrastructure/environments/*.tfvars
 secrets/
 
 # Node.js
@@ -41,3 +42,4 @@ coverage/
 dist/
 build/
 *.log
+*.zip
