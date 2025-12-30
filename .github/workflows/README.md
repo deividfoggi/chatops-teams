@@ -61,8 +61,15 @@ These workflows are called by other workflows to reduce duplication:
   - Outputs: Terraform outputs (app service name, URL, Key Vault name)
 
 - **`reusable-azure-deploy.yml`** - Reusable Azure App Service deployment
-  - Inputs: environment, app_name, artifact_name, runtime, use_slot
-  - Outputs: webapp_url, deployment_status
+  - Inputs: environment, app_service_name, resource_group, artifact_name, deployment_package_path, health_check_url, notification_webhook_url
+  - Outputs: deployment_status, health_check_result, deployment_url
+  - Features:
+    - Automatic artifact download
+    - Azure login with OIDC
+    - App Service verification and deployment
+    - Health checks with 3 retries (10s delay)
+    - Teams notifications with adaptive cards
+    - Comprehensive error handling
 
 ## 🔐 Required Secrets
 
@@ -298,6 +305,57 @@ Edit the Teams webhook payload in the notification steps:
       # Modify Adaptive Card JSON here
     }' ${{ vars.TEAMS_WEBHOOK_URL }}
 ```
+
+### Using Reusable Workflows
+
+#### Example: Call the Azure Deployment Workflow
+```yaml
+name: Deploy Application
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build app
+        run: |
+          cd src
+          npm ci
+          # Create deployment package
+          mkdir -p ../deployment
+          cp -r * ../deployment/
+          cd ../deployment
+          npm ci --production
+          cd ..
+          zip -r deployment.zip deployment/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: deployment-package
+          path: deployment.zip
+
+  deploy:
+    needs: build
+    uses: ./.github/workflows/reusable-azure-deploy.yml
+    with:
+      environment: production
+      app_service_name: my-app-service
+      resource_group: my-resource-group
+      artifact_name: deployment-package
+      deployment_package_path: deployment.zip
+      health_check_url: https://my-app-service.azurewebsites.net/health
+      notification_webhook_url: ${{ vars.TEAMS_WEBHOOK_URL }}
+    secrets: inherit
+```
+
+**Note:** The reusable workflow automatically downloads the specified artifact and verifies the deployment package before proceeding with deployment.
 
 ## 📚 Additional Documentation
 
