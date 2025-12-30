@@ -65,7 +65,7 @@ resource "azurerm_monitor_metric_alert" "redis_high_cache_miss_rate" {
   severity            = 2
   enabled             = true
   frequency           = "PT5M"
-  window_size         = "PT10M"
+  window_size         = "PT5M"
 
   criteria {
     metric_namespace = "Microsoft.Cache/redis"
