@@ -14,6 +14,8 @@ permissions:
 
 env:
   NODE_VERSION: '18'
+  # TODO: Configure staging-specific App Service name in GitHub Environment variables
+  # or use a different naming convention (e.g., 'chatops-app-service-staging')
   AZURE_WEBAPP_NAME: 'chatops-app-service'
 
 jobs:
@@ -119,7 +121,10 @@ jobs:
     
     steps:
       - name: Wait for App Startup
-        run: sleep 30
+        run: |
+          # Wait for the application to fully start and be ready to serve requests
+          # This accounts for Node.js initialization, Application Insights setup, etc.
+          sleep 30
       
       - name: Health Endpoint Check
         id: health_check
@@ -300,7 +305,8 @@ jobs:
           [ "$TELEMETRY_STATUS" = "passed" ] && TELEMETRY_ICON="✅"
           [ "$TELEMETRY_STATUS" = "warning" ] && TELEMETRY_ICON="⚠️"
           
-          curl -H "Content-Type: application/json" -d '{
+          # Send Teams notification with error handling
+          if curl --fail -H "Content-Type: application/json" -d '{
             "type": "message",
             "attachments": [{
               "contentType": "application/vnd.microsoft.card.adaptive",
@@ -349,7 +355,11 @@ jobs:
                 }]
               }
             }]
-          }' ${{ vars.TEAMS_WEBHOOK_URL }}
+          }' ${{ vars.TEAMS_WEBHOOK_URL }}; then
+            echo "✅ Teams notification sent successfully"
+          else
+            echo "⚠️ Failed to send Teams notification (webhook may be unavailable or misconfigured)"
+          fi
       
       - name: Deployment Summary
         if: always()
@@ -386,7 +396,7 @@ jobs:
             **Deployment Time:** \`${deploymentTime}\`
             **App URL:** ${{ needs.deploy.outputs.app_url }}
             
-            ${smokeStatus.includes('Passed') ? '✅ **Staging slot is ready for production swap**' : '⚠️ **Review test failures before promoting to production**'}
+            ${'${{ needs.smoke_tests.result }}' === 'success' ? '✅ **Staging slot is ready for production swap**' : '⚠️ **Review test failures before promoting to production**'}
             
             ### Actions:
             - [View Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
