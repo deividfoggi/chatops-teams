@@ -16,10 +16,11 @@ terraform {
     # Configure Azure Storage backend for state
     # Replace [uniqueid] with a unique suffix (e.g., organization abbreviation or random string)
     # Storage account names must be globally unique, 3-24 characters, lowercase letters and numbers only
-    resource_group_name  = "terraform-state-rg"
-    storage_account_name = "tfstate[uniqueid]"
+    resource_group_name  = "rg-terraform-state-chatops"
+    storage_account_name = "stterraformchatops19932"
     container_name       = "tfstate"
     key                  = "chatops.tfstate"
+    use_azuread_auth     = true
   }
 }
 
