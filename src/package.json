@@ -6,9 +6,12 @@
   "scripts": {
     "start": "node bot/server.js",
     "start:dev": "NODE_ENV=development node bot/server.js",
-    "test": "node bot/test.js",
-    "test:unit": "node bot/test.js",
-    "test:coverage": "c8 --reporter=text --reporter=lcov node bot/test.js",
+    "test": "node bot/test-runner.js",
+    "test:unit": "node bot/test-runner.js unit",
+    "test:integration": "node bot/test-runner.js integration",
+    "test:performance": "node bot/test-runner.js performance",
+    "test:all": "node bot/test-runner.js",
+    "test:coverage": "c8 --reporter=text --reporter=lcov --reporter=json-summary --check-coverage --lines 80 --functions 80 --branches 80 node bot/test-runner.js",
     "lint": "echo \"No linting configured yet\""
   },
   "keywords": [
