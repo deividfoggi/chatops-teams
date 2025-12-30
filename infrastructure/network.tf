@@ -170,11 +170,13 @@ resource "azurerm_subnet" "app_subnet" {
   virtual_network_name = azurerm_virtual_network.chatops_vnet.name
   address_prefixes     = ["10.0.1.0/24"]
 
+  service_endpoints = ["Microsoft.KeyVault"]
+
   delegation {
     name = "app-service-delegation"
 
     service_delegation {
-      name = "Microsoft.Web/serverFarms"
+      name = "Microsoft.App/environments"
       actions = [
         "Microsoft.Network/virtualNetworks/subnets/action"
       ]
@@ -283,12 +285,66 @@ resource "azurerm_storage_account" "nsg_flow_logs" {
   account_replication_type = "LRS"
   min_tls_version          = "TLS1_2"
 
+  # Note: Flow logs require either shared key access OR managed identity support
+  # in the azurerm_network_watcher_flow_log resource (available in provider v4.0+).
+  # Since we're using provider 3.58 and tenant disallows key-based auth,
+  # we'll need to either:
+  # 1. Upgrade to azurerm provider v4.0+ (supports identity block)
+  # 2. Temporarily enable shared key with strict network rules
+  # 3. Remove flow logs until provider upgrade
+  #
+  # For now, setting to false and relying on RBAC with managed identity
+  shared_access_key_enabled = false
+
   tags = {
     Environment = var.environment
     Application = "ChatOps"
     Purpose     = "NSG Flow Logs"
     ManagedBy   = "Terraform"
   }
+}
+
+# -----------------------------------------------------------------------------
+# Managed Identity for NSG Flow Logs
+# -----------------------------------------------------------------------------
+# This managed identity is used by Network Watcher to write flow logs to
+# the storage account. Note: The azurerm_network_watcher_flow_log resource
+# in provider 3.58 does not support the identity block. This identity is
+# prepared for future use when upgrading to provider 4.0+.
+# -----------------------------------------------------------------------------
+
+resource "azurerm_user_assigned_identity" "nsg_flow_logs" {
+  name                = "nsg-flow-logs-identity"
+  location            = azurerm_resource_group.chatops.location
+  resource_group_name = azurerm_resource_group.chatops.name
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    ManagedBy   = "Terraform"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Role Assignment for Flow Logs Storage Access
+# -----------------------------------------------------------------------------
+# Grants the managed identity Storage Blob Data Contributor permissions
+# to write flow logs to the storage account.
+# -----------------------------------------------------------------------------
+
+resource "azurerm_role_assignment" "flow_logs_storage" {
+  scope                = azurerm_storage_account.nsg_flow_logs.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_user_assigned_identity.nsg_flow_logs.principal_id
+}
+
+# Grant Terraform execution principal access to storage account
+# This is required for Terraform to manage the storage account when shared key access is disabled
+resource "azurerm_role_assignment" "terraform_storage_access" {
+  scope                = azurerm_storage_account.nsg_flow_logs.id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = data.azurerm_client_config.current.object_id
+  description          = "Allows Terraform to manage storage account with Azure AD authentication"
 }
 
 # -----------------------------------------------------------------------------
@@ -312,25 +368,43 @@ resource "azurerm_network_watcher" "chatops" {
   }
 }
 
-resource "azurerm_network_watcher_flow_log" "app_nsg_flow_log" {
-  name                      = "app-nsg-flow-log"
-  network_watcher_name      = azurerm_network_watcher.chatops.name
-  resource_group_name       = azurerm_resource_group.chatops.name
-  network_security_group_id = azurerm_network_security_group.app_nsg.id
-  storage_account_id        = azurerm_storage_account.nsg_flow_logs.id
-  enabled                   = true
-  version                   = 2
+# =============================================================================
+# NSG Flow Logs - Temporarily Disabled
+# =============================================================================
+# Flow logs have been disabled because:
+# 1. The Azure tenant prohibits key-based authentication on storage accounts
+# 2. azurerm provider 3.58 does not support managed identity for flow logs
+# 3. Upgrading to provider 4.0+ is required to enable managed identity support
+#
+# To re-enable flow logs after upgrading the provider:
+# 1. Update provider version in main.tf to >= 4.0
+# 2. Uncomment the flow log resource below
+# 3. Add identity block to the flow log resource (see provider 4.0+ docs)
+# =============================================================================
 
-  retention_policy {
-    enabled = true
-    days    = 90
-  }
-
-  traffic_analytics {
-    enabled               = true
-    workspace_id          = azurerm_log_analytics_workspace.chatops.workspace_id
-    workspace_region      = azurerm_log_analytics_workspace.chatops.location
-    workspace_resource_id = azurerm_log_analytics_workspace.chatops.id
-    interval_in_minutes   = 10
-  }
-}
+# resource "azurerm_network_watcher_flow_log" "app_nsg_flow_log" {
+#   name                      = "app-nsg-flow-log"
+#   network_watcher_name      = azurerm_network_watcher.chatops.name
+#   resource_group_name       = azurerm_resource_group.chatops.name
+#   network_security_group_id = azurerm_network_security_group.app_nsg.id
+#   storage_account_id        = azurerm_storage_account.nsg_flow_logs.id
+#   enabled                   = true
+#   version                   = 2
+#
+#   retention_policy {
+#     enabled = true
+#     days    = 90
+#   }
+#
+#   traffic_analytics {
+#     enabled               = true
+#     workspace_id          = azurerm_log_analytics_workspace.chatops.workspace_id
+#     workspace_region      = azurerm_log_analytics_workspace.chatops.location
+#     workspace_resource_id = azurerm_log_analytics_workspace.chatops.id
+#     interval_in_minutes   = 10
+#   }
+#
+#   depends_on = [
+#     azurerm_role_assignment.flow_logs_storage
+#   ]
+# }

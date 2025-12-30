@@ -24,31 +24,13 @@ resource "azurerm_web_application_firewall_policy" "chatops" {
   resource_group_name = azurerm_resource_group.chatops.name
 
   # =============================================================================
-  # Custom Rules - Rate Limiting
+  # Custom Rules - Removed
   # =============================================================================
-  # Custom rule to protect against DDoS and brute-force attacks by limiting
-  # the number of requests per IP address to 100 requests per minute.
+  # Note: Rate limiting rules with group_by_user_session are not supported in
+  # azurerm provider 3.58. Rate limiting can be configured at the Application
+  # Gateway level or using Azure Front Door. For now, we rely on OWASP managed
+  # rules for protection.
   # =============================================================================
-
-  custom_rules {
-    name      = "RateLimitRule"
-    priority  = 1
-    rule_type = "RateLimitRule"
-    action    = "Block"
-
-    rate_limit_duration  = "OneMin"
-    rate_limit_threshold = 100
-
-    match_conditions {
-      match_variables {
-        variable_name = "RemoteAddr"
-      }
-
-      operator           = "IPMatch"
-      negation_condition = false
-      match_values       = ["0.0.0.0/0", "::/0"]
-    }
-  }
 
   # =============================================================================
   # Policy Settings

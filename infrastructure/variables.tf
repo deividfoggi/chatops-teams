@@ -1,11 +1,22 @@
 variable "environment" {
   description = "Environment name (dev, staging, prod)"
   type        = string
-  default     = "prod"
+  default     = "dev"
 
   validation {
     condition     = contains(["dev", "staging", "prod"], var.environment)
     error_message = "Environment must be one of: dev, staging, prod"
+  }
+}
+
+variable "location" {
+  description = "Azure region for all resources"
+  type        = string
+  default     = "eastus"
+
+  validation {
+    condition     = can(regex("^[a-z0-9]+$", var.location))
+    error_message = "Location must be a valid Azure region name (e.g., eastus, westus2, eastus2)."
   }
 }
 

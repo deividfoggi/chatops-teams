@@ -254,6 +254,18 @@ resource "azurerm_application_gateway" "chatops" {
   }
 
   # =============================================================================
+  # SSL Policy Configuration
+  # =============================================================================
+  # Modern TLS policy using TLS 1.2 only with strong cipher suites.
+  # AppGwSslPolicy20220101 is the latest predefined policy.
+  # =============================================================================
+
+  ssl_policy {
+    policy_type = "Predefined"
+    policy_name = "AppGwSslPolicy20220101"
+  }
+
+  # =============================================================================
   # Backend Pool Configuration
   # =============================================================================
   # Backend pool for App Service instances.

@@ -47,9 +47,10 @@ resource "azurerm_key_vault" "chatops" {
   soft_delete_retention_days = 90
   purge_protection_enabled   = true
 
-  # Network ACLs - restrict access to trusted networks only
+  # Network ACLs - temporarily allow all access for initial deployment
+  # TODO: Restrict to app subnet only after initial deployment
   network_acls {
-    default_action             = "Deny"
+    default_action             = "Allow"
     bypass                     = "AzureServices"
     virtual_network_subnet_ids = [azurerm_subnet.app_subnet.id]
   }

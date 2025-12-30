@@ -8,8 +8,8 @@
 # -----------------------------------------------------------------------------
 # App Service Plan
 # -----------------------------------------------------------------------------
-# PremiumV3 P1v3 SKU (2 cores, 8 GB RAM) supports VNet integration and
-# provides autoscaling capabilities for production workloads.
+# Flex Consumption SKU (FC1) provides serverless scaling with automatic
+# scaling capabilities and pay-per-execution pricing model.
 # -----------------------------------------------------------------------------
 
 resource "azurerm_service_plan" "chatops" {
@@ -17,7 +17,7 @@ resource "azurerm_service_plan" "chatops" {
   location            = azurerm_resource_group.chatops.location
   resource_group_name = azurerm_resource_group.chatops.name
   os_type             = "Linux"
-  sku_name            = "P1v3"
+  sku_name            = "FC1"
 
   tags = {
     Environment = var.environment
@@ -31,10 +31,12 @@ resource "azurerm_service_plan" "chatops" {
 # -----------------------------------------------------------------------------
 # App Service Plan Autoscale Settings
 # -----------------------------------------------------------------------------
-# Autoscaling configuration based on CPU and memory metrics to ensure
-# optimal performance and cost efficiency.
+# Note: Flex Consumption (FC1) handles autoscaling automatically.
+# Manual autoscale configuration is not applicable for Flex Consumption plans.
+# Commenting out until migrated to a different SKU if needed.
 # -----------------------------------------------------------------------------
 
+/*
 resource "azurerm_monitor_autoscale_setting" "chatops_app_plan" {
   name                = "chatops-app-plan-autoscale"
   resource_group_name = azurerm_resource_group.chatops.name
@@ -145,6 +147,7 @@ resource "azurerm_monitor_autoscale_setting" "chatops_app_plan" {
     ManagedBy   = "Terraform"
   }
 }
+*/
 
 # -----------------------------------------------------------------------------
 # Linux App Service
@@ -169,7 +172,7 @@ resource "azurerm_linux_web_app" "chatops" {
   }
 
   site_config {
-    always_on           = true
+    always_on           = false # Not supported in Flex Consumption
     http2_enabled       = true
     minimum_tls_version = "1.2"
 
@@ -213,8 +216,9 @@ resource "azurerm_linux_web_app" "chatops" {
     "BOT_APP_PASSWORD"      = "@Microsoft.KeyVault(VaultName=${azurerm_key_vault.chatops.name};SecretName=bot-app-password)"
 
     # General settings
-    "WEBSITE_NODE_DEFAULT_VERSION" = "18-lts"
-    "WEBSITE_RUN_FROM_PACKAGE"     = "1"
+    # Note: WEBSITE_NODE_DEFAULT_VERSION is not supported in Flex Consumption
+    # Node version is configured via application_stack block in site_config
+    "WEBSITE_RUN_FROM_PACKAGE" = "1"
   }
 
   tags = {

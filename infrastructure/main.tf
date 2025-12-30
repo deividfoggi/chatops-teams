@@ -16,22 +16,27 @@ terraform {
     # Configure Azure Storage backend for state
     # Replace [uniqueid] with a unique suffix (e.g., organization abbreviation or random string)
     # Storage account names must be globally unique, 3-24 characters, lowercase letters and numbers only
-    resource_group_name  = "terraform-state-rg"
-    storage_account_name = "tfstate[uniqueid]"
+    resource_group_name  = "rg-terraform-state-chatops"
+    storage_account_name = "stterraformchatops19932"
     container_name       = "tfstate"
     key                  = "chatops.tfstate"
+    use_azuread_auth     = true
   }
 }
 
 provider "azurerm" {
   features {}
+
+  # Configure storage account data plane to use Entra ID authentication
+  # Required when storage accounts have shared_access_key_enabled = false
+  storage_use_azuread = true
 }
 
 data "azurerm_client_config" "current" {}
 
 resource "azurerm_resource_group" "chatops" {
   name     = "rg-chatops-${var.environment}"
-  location = "eastus"
+  location = var.location
 
   tags = {
     Environment = var.environment

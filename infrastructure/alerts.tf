@@ -51,7 +51,7 @@ resource "azurerm_monitor_scheduled_query_rules_alert_v2" "high_exception_rate" 
   resource_group_name = azurerm_resource_group.chatops.name
   description         = "Alert when the exception rate exceeds 10 exceptions in 5 minutes, indicating potential application issues requiring investigation."
 
-  evaluation_frequency = "PT1M"
+  evaluation_frequency = "PT5M"
   window_duration      = "PT5M"
   scopes               = [azurerm_application_insights.chatops.id]
   severity             = 2
@@ -166,6 +166,7 @@ resource "azurerm_monitor_scheduled_query_rules_alert_v2" "slow_response_time" {
     QUERY
 
     time_aggregation_method = "Average"
+    metric_measure_column   = "AvgDuration"
     operator                = "GreaterThan"
     threshold               = 5000
 
@@ -217,6 +218,7 @@ resource "azurerm_monitor_scheduled_query_rules_alert_v2" "availability_test_fai
     QUERY
 
     time_aggregation_method = "Maximum"
+    metric_measure_column   = "FailedRegions"
     operator                = "GreaterThanOrEqual"
     threshold               = 2
 

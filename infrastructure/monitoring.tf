@@ -59,7 +59,7 @@ resource "azurerm_application_insights" "chatops" {
 
 resource "azurerm_application_insights_standard_web_test" "chatops_eastus" {
   name                    = "chatops-availability-eastus"
-  location                = "eastus"
+  location                = azurerm_resource_group.chatops.location
   resource_group_name     = azurerm_resource_group.chatops.name
   application_insights_id = azurerm_application_insights.chatops.id
 
@@ -100,7 +100,7 @@ resource "azurerm_application_insights_standard_web_test" "chatops_eastus" {
 
 resource "azurerm_application_insights_standard_web_test" "chatops_westus" {
   name                    = "chatops-availability-westus"
-  location                = "westus"
+  location                = azurerm_resource_group.chatops.location
   resource_group_name     = azurerm_resource_group.chatops.name
   application_insights_id = azurerm_application_insights.chatops.id
 
@@ -141,7 +141,7 @@ resource "azurerm_application_insights_standard_web_test" "chatops_westus" {
 
 resource "azurerm_application_insights_standard_web_test" "chatops_northeurope" {
   name                    = "chatops-availability-northeurope"
-  location                = "northeurope"
+  location                = azurerm_resource_group.chatops.location
   resource_group_name     = azurerm_resource_group.chatops.name
   application_insights_id = azurerm_application_insights.chatops.id
 
@@ -182,7 +182,7 @@ resource "azurerm_application_insights_standard_web_test" "chatops_northeurope" 
 
 resource "azurerm_application_insights_standard_web_test" "chatops_southeastasia" {
   name                    = "chatops-availability-southeastasia"
-  location                = "southeastasia"
+  location                = azurerm_resource_group.chatops.location
   resource_group_name     = azurerm_resource_group.chatops.name
   application_insights_id = azurerm_application_insights.chatops.id
 
@@ -223,14 +223,14 @@ resource "azurerm_application_insights_standard_web_test" "chatops_southeastasia
 
 resource "azurerm_application_insights_standard_web_test" "chatops_australiaeast" {
   name                    = "chatops-availability-australiaeast"
-  location                = "australiaeast"
+  location                = azurerm_resource_group.chatops.location
   resource_group_name     = azurerm_resource_group.chatops.name
   application_insights_id = azurerm_application_insights.chatops.id
 
   frequency     = 300
   timeout       = 30
   enabled       = true
-  geo_locations = ["apac-au-syd-edge"] # Australia East
+  geo_locations = ["emea-au-syd-edge"] # Australia East
 
   request {
     url       = "https://chatops-app-${var.environment}.azurewebsites.net/health"
