@@ -1,0 +1,271 @@
+name: Application - Deploy to Dev
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'src/**'
+      - '.github/workflows/app-cd-dev.yml'
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  NODE_VERSION: '18'
+  AZURE_WEBAPP_NAME: 'chatops-app-service'
+
+jobs:
+  build:
+    name: Build Application
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: src/package.json
+      
+      - name: Install dependencies
+        run: npm ci
+        working-directory: ./src
+      
+      - name: Create deployment package
+        run: |
+          # Create a clean deployment package
+          mkdir -p ../deployment
+          cp -r * ../deployment/ 2>/dev/null || true
+          cp package*.json ../deployment/
+          
+          # Remove dev dependencies and reinstall for production
+          cd ../deployment
+          npm ci --production
+          
+          # Create zip file for deployment
+          cd ..
+          zip -r deployment.zip deployment/
+        working-directory: ./src
+      
+      - name: Upload deployment artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-package
+          path: src/deployment.zip
+          retention-days: 1
+
+  deploy:
+    name: Deploy to Dev Environment
+    runs-on: ubuntu-latest
+    needs: build
+    environment: dev
+    
+    steps:
+      - name: Download deployment artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: deployment-package
+      
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          enable-AzPSSession: false
+      
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          package: deployment.zip
+      
+      - name: Get App Service URL
+        id: get-url
+        run: |
+          APP_URL=$(az webapp show \
+            --name ${{ env.AZURE_WEBAPP_NAME }} \
+            --resource-group $(az webapp show --name ${{ env.AZURE_WEBAPP_NAME }} --query resourceGroup -o tsv) \
+            --query defaultHostName -o tsv)
+          echo "app_url=https://${APP_URL}" >> $GITHUB_OUTPUT
+          echo "App Service URL: https://${APP_URL}"
+
+  health_check:
+    name: Post-Deployment Health Check
+    runs-on: ubuntu-latest
+    needs: deploy
+    environment: dev
+    
+    steps:
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          enable-AzPSSession: false
+      
+      - name: Get App Service URL
+        id: get-url
+        run: |
+          APP_URL=$(az webapp show \
+            --name ${{ env.AZURE_WEBAPP_NAME }} \
+            --resource-group $(az webapp show --name ${{ env.AZURE_WEBAPP_NAME }} --query resourceGroup -o tsv) \
+            --query defaultHostName -o tsv)
+          echo "app_url=https://${APP_URL}" >> $GITHUB_OUTPUT
+          echo "App Service URL: https://${APP_URL}"
+      
+      - name: Wait for App Startup
+        run: sleep 30
+      
+      - name: Health Check with Retry
+        id: health_check
+        run: |
+          APP_URL="${{ steps.get-url.outputs.app_url }}"
+          MAX_ATTEMPTS=3
+          ATTEMPT=1
+          SUCCESS=false
+          
+          echo "Starting health check for: ${APP_URL}/health"
+          
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "Attempt $ATTEMPT of $MAX_ATTEMPTS"
+            
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${APP_URL}/health" || echo "000")
+            
+            echo "HTTP Status Code: $HTTP_CODE"
+            
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Health check passed!"
+              SUCCESS=true
+              break
+            fi
+            
+            echo "Health check failed with status: $HTTP_CODE"
+            
+            if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+              echo "Waiting 10 seconds before retry..."
+              sleep 10
+            fi
+            
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+          
+          if [ "$SUCCESS" = "false" ]; then
+            echo "❌ Health check failed after $MAX_ATTEMPTS attempts"
+            exit 1
+          fi
+      
+      - name: Post Health Check Summary
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const status = '${{ steps.health_check.outcome }}' === 'success' ? '✅ Healthy' : '❌ Failed';
+            const appUrl = '${{ steps.get-url.outputs.app_url }}';
+            
+            const output = `### 🏥 Health Check Results
+            
+            **Status:** ${status}
+            **Endpoint:** \`${appUrl}/health\`
+            **Environment:** \`dev\`
+            **Deployed by:** @${{ github.actor }}
+            
+            ---
+            *Workflow: \`${{ github.workflow }}\` | Run: #${{ github.run_number }}*`;
+            
+            core.summary.addRaw(output).write();
+
+  notify:
+    name: Send Deployment Notification
+    runs-on: ubuntu-latest
+    needs: [deploy, health_check]
+    if: always()
+    
+    steps:
+      - name: Send Teams Notification
+        if: vars.TEAMS_WEBHOOK_URL != ''
+        run: |
+          DEPLOY_STATUS="${{ needs.deploy.result }}"
+          HEALTH_STATUS="${{ needs.health_check.result }}"
+          
+          if [ "$DEPLOY_STATUS" = "success" ] && [ "$HEALTH_STATUS" = "success" ]; then
+            STATUS="Success"
+            COLOR="Good"
+            STATUS_ICON="✅"
+          else
+            STATUS="Failed"
+            COLOR="Attention"
+            STATUS_ICON="❌"
+          fi
+          
+          curl -H "Content-Type: application/json" -d '{
+            "type": "message",
+            "attachments": [{
+              "contentType": "application/vnd.microsoft.card.adaptive",
+              "content": {
+                "type": "AdaptiveCard",
+                "version": "1.4",
+                "body": [{
+                  "type": "TextBlock",
+                  "text": "'"$STATUS_ICON"' Application Deployment - Dev",
+                  "weight": "Bolder",
+                  "size": "Large"
+                }, {
+                  "type": "FactSet",
+                  "facts": [
+                    {"title": "Status", "value": "'"$STATUS"'"},
+                    {"title": "Environment", "value": "dev"},
+                    {"title": "Application", "value": "ChatOps Teams Bot"},
+                    {"title": "Deployment", "value": "'"$DEPLOY_STATUS"'"},
+                    {"title": "Health Check", "value": "'"$HEALTH_STATUS"'"},
+                    {"title": "Deployed by", "value": "${{ github.actor }}"},
+                    {"title": "Branch", "value": "${{ github.ref_name }}"},
+                    {"title": "Commit", "value": "${{ github.sha }}"[0:7]}
+                  ]
+                }],
+                "actions": [{
+                  "type": "Action.OpenUrl",
+                  "title": "View Workflow",
+                  "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                }, {
+                  "type": "Action.OpenUrl",
+                  "title": "View Commit",
+                  "url": "${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+                }]
+              }
+            }]
+          }' ${{ vars.TEAMS_WEBHOOK_URL }}
+      
+      - name: Deployment Summary
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const deployStatus = '${{ needs.deploy.result }}' === 'success' ? '✅ Success' : '❌ Failed';
+            const healthStatus = '${{ needs.health_check.result }}' === 'success' ? '✅ Passed' : '❌ Failed';
+            
+            const output = `## 🚀 Application Deployment - Dev
+            
+            | Check | Status |
+            |-------|--------|
+            | Deployment | ${deployStatus} |
+            | Health Check | ${healthStatus} |
+            
+            **Environment:** \`dev\`
+            **Application:** \`${{ env.AZURE_WEBAPP_NAME }}\`
+            **Deployed by:** @${{ github.actor }}
+            **Branch:** \`${{ github.ref_name }}\`
+            **Commit:** \`${{ github.sha }}\`
+            
+            ### Actions:
+            - [View Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+            - [View Commit](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})
+            `;
+            
+            core.summary.addRaw(output).write();
