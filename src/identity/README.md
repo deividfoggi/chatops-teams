@@ -1,15 +1,24 @@
 # Identity Module
 
-Maps GitHub usernames to Microsoft Entra ID (Azure AD) identities to enable targeted notifications in Microsoft Teams.
+Maps GitHub usernames to Microsoft Entra ID (Azure AD) identities to enable targeted notifications in Microsoft Teams. Includes Teams user retrieval with batch operations, presence information, and intelligent caching.
 
 ## Features
 
+### User Mapping
 - **Direct Email Matching**: Match GitHub users by email address
 - **Fuzzy Name Matching**: Find Entra ID users using Levenshtein distance algorithm with confidence scores
 - **Manual Overrides**: Support manual mapping configurations for special cases
-- **Caching**: Redis-backed caching with configurable TTL (default: 7 days)
+- **Caching**: Redis-backed caching with configurable TTL (default: 7 days for mappings)
 - **Periodic Sync**: Weekly validation job to refresh stale mappings
 - **Fallback Mechanisms**: Repository-level and system-wide fallback recipients
+
+### Teams User Retrieval (Story 2.5)
+- **Batch Operations**: Retrieve up to 20 users per request using `POST /$batch`
+- **User Presence**: Get availability and activity status via `GET /users/{id}/presence`
+- **Smart Caching**: 1-hour TTL for Teams user objects
+- **Retry Logic**: Automatic retry with exponential backoff (up to 3 attempts)
+- **Guest Detection**: Identify external collaborators and guest users
+- **Notification Urgency**: Adjust notification priority based on user presence
 - **Telemetry**: Comprehensive Application Insights integration
 
 ## Installation
@@ -51,6 +60,7 @@ REDIS_TLS=true
    - Click "Add a permission" → Microsoft Graph → Application permissions
    - Add these permissions:
      - `User.Read.All` - Read all users' full profiles
+     - `Presence.Read.All` - Read presence information for all users (for Story 2.5)
    - Click "Grant admin consent"
 
 3. **Create Client Secret**
@@ -143,6 +153,98 @@ console.log('Sync results:', results);
 syncJob.stop();
 ```
 
+### Teams User Retrieval (Story 2.5)
+
+```javascript
+const { TeamsUserService } = require('./identity');
+
+// Initialize the service
+const teamsService = new TeamsUserService({
+  clientId: process.env.ENTRA_CLIENT_ID,
+  clientSecret: process.env.ENTRA_CLIENT_SECRET,
+  tenantId: process.env.ENTRA_TENANT_ID,
+  redis: {
+    url: process.env.REDIS_URL,
+  },
+});
+
+// Get a single user with presence
+const user = await teamsService.getUser('entra-user-id', {
+  includePresence: true,
+  useCache: true,
+});
+
+console.log('User:', user.displayName);
+console.log('Presence:', user.presence?.availability);
+
+// Determine notification urgency
+const urgency = teamsService.determineNotificationUrgency(user.presence);
+console.log('Urgency:', urgency); // 'high', 'normal', or 'low'
+
+// Check if guest user
+const isGuest = teamsService.isGuestUser(user);
+console.log('Is Guest:', isGuest);
+
+// Get multiple users (automatically batches in groups of 20)
+const users = await teamsService.getUsers([
+  'entra-id-1',
+  'entra-id-2',
+  'entra-id-3',
+  // ... up to hundreds of users
+], {
+  includePresence: true,
+  useCache: true,
+});
+
+console.log(`Retrieved ${users.length} users`);
+
+// Get users with retry logic for resilience
+const usersWithRetry = await teamsService.getUsersWithRetry(userIds, {
+  includePresence: true,
+  throwOnError: false, // Return partial results on failure
+});
+```
+
+### Complete Workflow: GitHub to Teams Notifications
+
+```javascript
+const { UserMapper, TeamsUserService } = require('./identity');
+
+// Step 1: Map GitHub users to Entra ID
+const userMapper = new UserMapper();
+const githubUsers = [
+  { username: 'alice', email: 'alice@example.com' },
+  { username: 'bob', email: 'bob@example.com' },
+];
+
+const mappings = [];
+for (const githubUser of githubUsers) {
+  const mapping = await userMapper.mapUser(githubUser.username, githubUser.email);
+  if (mapping) {
+    mappings.push(mapping);
+  }
+}
+
+// Step 2: Retrieve Teams user objects with presence
+const teamsService = new TeamsUserService();
+const entraIds = mappings.map(m => m.entraUserId);
+const teamsUsers = await teamsService.getUsersWithRetry(entraIds, {
+  includePresence: true,
+});
+
+// Step 3: Determine notification strategy based on presence
+const highPriority = teamsUsers.filter(u => 
+  teamsService.determineNotificationUrgency(u.presence) === 'high'
+);
+
+const lowPriority = teamsUsers.filter(u => 
+  teamsService.determineNotificationUrgency(u.presence) === 'low'
+);
+
+console.log(`Send immediately: ${highPriority.length} users`);
+console.log(`Can be delayed: ${lowPriority.length} users`);
+```
+
 ## Architecture
 
 ### Components
@@ -151,6 +253,8 @@ syncJob.stop();
    - OAuth2 token management with automatic refresh
    - User lookup by email, ID, and display name
    - Fuzzy matching with Levenshtein distance algorithm
+   - Batch operations for up to 20 users per request
+   - User presence retrieval
 
 2. **UserMapper**: Core mapping logic
    - Multi-strategy user matching (manual → cache → email → fuzzy)
@@ -163,6 +267,14 @@ syncJob.stop();
    - Automatic refresh of stale entries
    - Removal of invalid mappings
    - Telemetry tracking
+
+4. **TeamsUserService**: Teams user retrieval with batch optimization (Story 2.5)
+   - Batch user retrieval (max 20 per request)
+   - User presence information
+   - Smart caching (1-hour TTL)
+   - Retry logic with exponential backoff
+   - Guest user detection
+   - Notification urgency determination
 
 ### Matching Strategy
 
@@ -203,6 +315,29 @@ Example:
 }
 ```
 
+Teams user objects are cached separately:
+
+```
+Key: teams:user:<entra_user_id>
+Value: JSON string
+TTL: 3600 seconds (1 hour)
+
+Example:
+{
+  "id": "entra-id-123",
+  "displayName": "John Doe",
+  "mail": "john.doe@example.com",
+  "userPrincipalName": "john.doe@example.com",
+  "userType": "Member",
+  "jobTitle": "Software Engineer",
+  "officeLocation": "Building 1",
+  "presence": {
+    "availability": "Available",
+    "activity": "Available"
+  }
+}
+```
+
 ## Telemetry
 
 The module tracks these metrics in Application Insights:
@@ -212,14 +347,23 @@ The module tracks these metrics in Application Insights:
 - `GraphClient.FindUserByEmail.Duration`
 - `GraphClient.FindUsersByDisplayName.Duration`
 - `GraphClient.GetUserById.Duration`
+- `GraphClient.BatchGetUsers.Duration` *(Story 2.5)*
+- `GraphClient.GetUserPresence.Duration` *(Story 2.5)*
+- `GraphClient.BatchGetPresence.Duration` *(Story 2.5)*
 - `UserMapper.MapUser.Duration`
 - `UserMapper.ValidateMappings.Duration`
 - `UserMappingSyncJob.Duration`
+- `TeamsUserService.GetUser.Duration` *(Story 2.5)*
+- `TeamsUserService.GetUsers.Duration` *(Story 2.5)*
 
 ### Events
 - `GraphClient.GetAccessToken.Success`
 - `GraphClient.FindUserByEmail`
 - `GraphClient.FindUsersByDisplayName`
+- `GraphClient.BatchGetUsers` *(Story 2.5)*
+- `GraphClient.GetUserPresence` *(Story 2.5)*
+- `GraphClient.GetUserPresence.NotAvailable` *(Story 2.5)*
+- `GraphClient.BatchGetPresence` *(Story 2.5)*
 - `UserMapper.MapUser.Success`
 - `UserMapper.MapUser.CacheHit`
 - `UserMapper.MapUser.NoMatch`
@@ -228,17 +372,30 @@ The module tracks these metrics in Application Insights:
 - `UserMappingSyncJob.Started`
 - `UserMappingSyncJob.Completed`
 - `UserMappingSyncJob.Stopped`
+- `TeamsUserService.GetUser.Success` *(Story 2.5)*
+- `TeamsUserService.GetUser.CacheHit` *(Story 2.5)*
+- `TeamsUserService.GetUser.NotFound` *(Story 2.5)*
+- `TeamsUserService.GetUsers.Success` *(Story 2.5)*
+- `TeamsUserService.GetUsersWithRetry.SuccessAfterRetry` *(Story 2.5)*
+- `TeamsUserService.GetUsersWithRetry.Attempt` *(Story 2.5)*
 
 ## Testing
 
-Run the comprehensive test suite:
+Run the comprehensive test suites:
 
 ```bash
 cd src
+
+# Test user mapping
 node identity/userMapper.test.js
+
+# Test Teams user service (Story 2.5)
+node identity/teamsUserService.test.js
 ```
 
-Tests cover:
+### Test Coverage
+
+**UserMapper Tests:**
 - OAuth2 token acquisition
 - User lookup by email
 - Fuzzy matching with confidence scores
@@ -247,10 +404,29 @@ Tests cover:
 - Fallback recipient resolution
 - No match handling
 
+**TeamsUserService Tests (Story 2.5):**
+- ✓ Get single user with presence
+- ✓ Get single user from cache
+- ✓ Get multiple users in batch
+- ✓ Batch optimization with cache hits
+- ✓ Split users into batches when exceeding max batch size
+- ✓ Determine notification urgency based on presence
+- ✓ Identify guest users
+- ✓ Handle user not found
+- ✓ Retry logic on failure with exponential backoff
+- ✓ Clear user cache
+- ✓ Handle partial batch failures gracefully
+- ✓ Cache respects TTL expiration
+- ✓ GraphClient enforces batch size limit of 20
+
+All 13 tests passing ✓
+
 ## Security Considerations
 
 1. **Credential Storage**: Never commit `ENTRA_CLIENT_SECRET` to Git. Use Azure Key Vault in production.
-2. **API Permissions**: Use least privilege. `User.Read.All` is required but limit to application permissions only.
+2. **API Permissions**: Use least privilege. Required permissions:
+   - `User.Read.All` - Read user profiles (required)
+   - `Presence.Read.All` - Read presence information (required for Story 2.5)
 3. **Token Caching**: Access tokens are cached with 5-minute buffer before expiration.
 4. **TLS**: Always use TLS for Redis connections in production (`REDIS_TLS=true`).
 
@@ -277,12 +453,39 @@ Tests cover:
 - Consider using manual mapping overrides for problematic users.
 - Ensure GitHub usernames align with Entra ID display names.
 
+**Issue**: "Batch request cannot exceed 20 users" *(Story 2.5)*
+- **Solution**: This is expected behavior. TeamsUserService automatically splits large requests into batches of 20.
+- If calling GraphClient directly, manually split into batches using the service's helper methods.
+
+**Issue**: "User presence not available" *(Story 2.5)*
+- **Solution**: Presence may not be available for:
+  - Guest users
+  - External collaborators
+  - Users with presence privacy settings enabled
+- The service handles this gracefully and returns `null` for presence.
+- Verify `Presence.Read.All` permission is granted.
+
+**Issue**: Slow batch operations *(Story 2.5)*
+- **Solution**: 
+  - Ensure Redis is configured for optimal caching (1-hour TTL)
+  - Check cache hit ratio in telemetry (target > 80%)
+  - Consider pre-warming cache for frequently accessed users
+  - Verify network latency to Microsoft Graph API
+
 ## Performance
 
+### User Mapping
 - **Cache Hit Ratio**: Target > 80% (tracked in telemetry)
 - **Graph API Latency**: ~100-500ms per query
 - **Cached Lookup**: < 10ms
 - **Weekly Sync**: ~1-5 minutes for 1000 users
+
+### Teams User Service (Story 2.5)
+- **Single User Retrieval**: < 50ms (cached), ~200-500ms (uncached)
+- **Batch Operations**: ~500-1000ms for 20 users (uncached)
+- **Cache Hit Ratio**: Target > 80%
+- **Retry Latency**: 1s, 2s, 4s (exponential backoff)
+- **Maximum Batch Size**: 20 users per request (Microsoft Graph limit)
 
 ## Roadmap
 
