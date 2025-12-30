@@ -542,5 +542,3 @@ class GraphClient {
 }
 
 module.exports = GraphClient;
-
-module.exports = GraphClient;

@@ -166,7 +166,7 @@ async function example3() {
     
     // Determine notification strategy based on presence
     teamsUsers.forEach(user => {
-      const urgency = service.determineNotificationUrgency(user.presence);
+      const urgency = teamsService.determineNotificationUrgency(user.presence);
       const isGuest = teamsService.isGuestUser(user);
       
       console.log(`\n- ${user.displayName} (${user.mail})`);
