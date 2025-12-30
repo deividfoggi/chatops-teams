@@ -41,7 +41,6 @@ jobs:
           # Create a clean deployment package
           mkdir -p ../deployment
           cp -r * ../deployment/ 2>/dev/null || true
-          cp package*.json ../deployment/
           
           # Remove dev dependencies and reinstall for production
           cd ../deployment
@@ -183,11 +182,9 @@ jobs:
           
           if [ "$DEPLOY_STATUS" = "success" ] && [ "$HEALTH_STATUS" = "success" ]; then
             STATUS="Success"
-            COLOR="Good"
             STATUS_ICON="✅"
           else
             STATUS="Failed"
-            COLOR="Attention"
             STATUS_ICON="❌"
           fi
           
@@ -236,6 +233,7 @@ jobs:
           script: |
             const deployStatus = '${{ needs.deploy.result }}' === 'success' ? '✅ Success' : '❌ Failed';
             const healthStatus = '${{ needs.health_check.result }}' === 'success' ? '✅ Passed' : '❌ Failed';
+            const commitSha = '${{ github.sha }}'.substring(0, 7);
             
             const output = `## 🚀 Application Deployment - Dev
             
@@ -248,7 +246,7 @@ jobs:
             **Application:** \`${{ env.AZURE_WEBAPP_NAME }}\`
             **Deployed by:** @${{ github.actor }}
             **Branch:** \`${{ github.ref_name }}\`
-            **Commit:** \`${context.payload.head_commit.id.substring(0, 7)}\`
+            **Commit:** \`${commitSha}\`
             
             ### Actions:
             - [View Workflow Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
