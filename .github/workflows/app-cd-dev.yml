@@ -179,6 +179,8 @@ jobs:
         run: |
           DEPLOY_STATUS="${{ needs.deploy.result }}"
           HEALTH_STATUS="${{ needs.health_check.result }}"
+          COMMIT_SHA="${{ github.sha }}"
+          SHORT_SHA="${COMMIT_SHA:0:7}"
           
           if [ "$DEPLOY_STATUS" = "success" ] && [ "$HEALTH_STATUS" = "success" ]; then
             STATUS="Success"
@@ -210,7 +212,7 @@ jobs:
                     {"title": "Health Check", "value": "'"$HEALTH_STATUS"'"},
                     {"title": "Deployed by", "value": "${{ github.actor }}"},
                     {"title": "Branch", "value": "${{ github.ref_name }}"},
-                    {"title": "Commit", "value": "'$(echo "${{ github.sha }}" | cut -c1-7)'"}
+                    {"title": "Commit", "value": "'"$SHORT_SHA"'"}
                   ]
                 }],
                 "actions": [{
