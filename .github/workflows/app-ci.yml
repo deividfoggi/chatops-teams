@@ -139,13 +139,13 @@ jobs:
             
 ### Test Execution
 
-| Test Type | Status |
-|-----------|--------|
-| Linting | ${lintStatus} |
-| Unit Tests | ${testUnitStatus} |
-| Integration Tests | ${testIntegrationStatus} |
-| Performance Tests | ${testPerformanceStatus} |
-| All Tests | ${testAllStatus} |
+#| Test Type | Status |
+#|-----------|--------|
+#| Linting | ${lintStatus} |
+#| Unit Tests | ${testUnitStatus} |
+#| Integration Tests | ${testIntegrationStatus} |
+#| Performance Tests | ${testPerformanceStatus} |
+#| All Tests | ${testAllStatus} |
 
 ### Code Coverage
 
