@@ -7,6 +7,8 @@
  * @module bot/webhookHandlers
  */
 
+const { processCodeScanningAlert } = require('./alertSeverityFilter');
+
 /**
  * Handles code scanning alert webhook events
  * 
@@ -16,43 +18,77 @@
  */
 async function handleCodeScanningAlert(payload, telemetryClient) {
   const { action, alert, repository, sender } = payload;
+  const repositoryFullName = repository?.full_name || 'unknown';
 
-  console.log(`Processing code_scanning_alert: action=${action}, alert=${alert?.number}, repo=${repository?.full_name}`);
+  console.log(`Processing code_scanning_alert: action=${action}, alert=${alert?.number}, repo=${repositoryFullName}`);
 
-  // Track event in Application Insights
+  // Process alert through severity filter
+  const filterResult = processCodeScanningAlert(alert, repositoryFullName);
+  const { shouldEscalate, metadata } = filterResult;
+
+  console.log(`Alert severity filtering: severity=${metadata.severity}, shouldEscalate=${shouldEscalate}, reason=${filterResult.reason}`);
+
+  // Log all alerts to Application Insights regardless of severity
   if (telemetryClient) {
     telemetryClient.trackEvent('GitHubWebhookReceived', {
       eventType: 'code_scanning_alert',
       action: action,
       alertNumber: String(alert?.number || 'unknown'),
-      repository: repository?.full_name || 'unknown',
-      severity: alert?.rule?.severity || 'unknown',
-      state: alert?.state || 'unknown',
+      repository: repositoryFullName,
+      severity: metadata.severity,
+      state: metadata.state,
       sender: sender?.login || 'unknown',
+      shouldEscalate: String(shouldEscalate),
+      cweIds: metadata.cweIds.join(',') || 'none',
+      cveIds: metadata.cveIds.join(',') || 'none',
+      cvssScore: metadata.cvssScore ? String(metadata.cvssScore) : 'none',
+      ruleId: metadata.ruleId,
     });
 
     // Track custom metric for alert severity
-    if (alert?.rule?.severity) {
-      telemetryClient.trackMetric('CodeScanningAlertsBySeverity', 1, {
-        severity: alert.rule.severity,
-        repository: repository?.full_name,
+    telemetryClient.trackMetric('CodeScanningAlertsBySeverity', 1, {
+      severity: metadata.severity,
+      repository: repositoryFullName,
+      shouldEscalate: String(shouldEscalate),
+    });
+
+    // Track escalated alerts separately
+    if (shouldEscalate) {
+      telemetryClient.trackMetric('CodeScanningAlertsEscalated', 1, {
+        severity: metadata.severity,
+        repository: repositoryFullName,
       });
     }
   }
 
-  // TODO: Route to Logic App workflow for code scanning alerts
-  // For now, log the key information
+  // Build result object
   const result = {
-    status: 'processed',
+    status: shouldEscalate ? 'escalated' : 'logged',
     eventType: 'code_scanning_alert',
     action: action,
     alertNumber: alert?.number,
-    repository: repository?.full_name,
-    severity: alert?.rule?.severity,
-    message: `Code scanning alert ${action}: ${alert?.rule?.description || 'No description'}`,
+    repository: repositoryFullName,
+    severity: metadata.severity,
+    shouldEscalate,
+    metadata: {
+      cweIds: metadata.cweIds,
+      cveIds: metadata.cveIds,
+      cvssScore: metadata.cvssScore,
+      affectedFiles: metadata.affectedFiles,
+      ruleId: metadata.ruleId,
+      ruleName: metadata.ruleName,
+      description: metadata.description,
+    },
+    message: shouldEscalate
+      ? `Code scanning alert ${action} (ESCALATED): ${metadata.description}`
+      : `Code scanning alert ${action} (logged only): ${metadata.description}`,
   };
 
   console.log(`Code scanning alert processed: ${JSON.stringify(result)}`);
+
+  // TODO: Route to Logic App workflow for escalated alerts
+  // If shouldEscalate is true, send to Teams notification workflow
+  // All alerts are logged to Azure Log Analytics via Application Insights
 
   return result;
 }
