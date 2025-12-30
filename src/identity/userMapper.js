@@ -97,6 +97,8 @@ class UserMapper {
     try {
       if (redisConfig.url || process.env.REDIS_URL) {
         this.storage = new Redis(redisConfig.url || process.env.REDIS_URL, {
+          // Note: rejectUnauthorized: false is used for Azure Redis Cache compatibility
+          // In production, ensure proper certificate validation is in place
           tls: redisConfig.tls ? { rejectUnauthorized: false } : undefined,
         });
       } else if (redisConfig.host || process.env.REDIS_HOST) {
@@ -104,6 +106,8 @@ class UserMapper {
           host: redisConfig.host || process.env.REDIS_HOST,
           port: redisConfig.port || parseInt(process.env.REDIS_PORT || '6379', 10),
           password: redisConfig.password || process.env.REDIS_PASSWORD,
+          // Note: rejectUnauthorized: false is used for Azure Redis Cache compatibility
+          // In production, ensure proper certificate validation is in place
           tls: redisConfig.tls || (process.env.REDIS_TLS === 'true') ? { rejectUnauthorized: false } : undefined,
         });
       } else {

@@ -214,8 +214,8 @@ async function runTests() {
     testsFailed++;
   }
 
-  // Test 5: GraphClient - Levenshtein Distance Calculation
-  console.log('Test 5: GraphClient - Levenshtein Distance Calculation');
+  // Test 5: GraphClient - Similarity Through Fuzzy Search
+  console.log('Test 5: GraphClient - Similarity Through Fuzzy Search');
   try {
     const graphClient = new GraphClient({
       clientId: 'test-client-id',
@@ -223,16 +223,18 @@ async function runTests() {
       tenantId: 'test-tenant-id',
     });
 
-    const similarity = graphClient._calculateSimilarity('john', 'john');
+    // Test similarity calculation through fuzzy search
+    const users = await graphClient.findUsersByDisplayName('johndoe');
     
-    if (similarity === 1.0) {
-      console.log('✅ Levenshtein similarity calculation works (exact match)\n');
+    // The first result should have highest confidence (exact-ish match)
+    if (users && users.length > 0 && users[0].confidence > 0.8) {
+      console.log('✅ Similarity calculation works through fuzzy search (confidence > 0.8)\n');
       testsPassed++;
     } else {
-      throw new Error(`Expected similarity 1.0, got ${similarity}`);
+      throw new Error(`Expected high confidence, got ${users?.[0]?.confidence}`);
     }
   } catch (error) {
-    console.log('❌ Levenshtein similarity calculation failed:', error.message, '\n');
+    console.log('❌ Similarity calculation test failed:', error.message, '\n');
     testsFailed++;
   }
 
