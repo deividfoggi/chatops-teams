@@ -136,8 +136,8 @@ jobs:
             --auth-mode login \
             --overwrite
           
-          # Generate SAS token with 1 year expiry using user delegation key
-          EXPIRY=$(date -u -d '+1 year' '+%Y-%m-%dT%H:%MZ' 2>/dev/null || date -u -v +1y '+%Y-%m-%dT%H:%MZ')
+          # Generate SAS token with 7 days expiry (max for user delegation key)
+          EXPIRY=$(date -u -d '+7 days' '+%Y-%m-%dT%H:%MZ' 2>/dev/null || date -u -v +7d '+%Y-%m-%dT%H:%MZ')
           
           SAS_TOKEN=$(az storage blob generate-sas \
             --account-name $STORAGE_ACCOUNT \
