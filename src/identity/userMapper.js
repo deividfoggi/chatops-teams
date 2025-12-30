@@ -36,7 +36,9 @@ class InMemoryStore {
   }
 
   async keys(pattern) {
-    const regex = new RegExp('^' + pattern.replace('*', '.*') + '$');
+    // Convert Redis pattern to regex, escaping special chars and handling wildcards
+    const escapedPattern = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\*/g, '.*');
+    const regex = new RegExp('^' + escapedPattern + '$');
     return Array.from(this.mappings.keys()).filter(key => regex.test(key));
   }
 

@@ -10,8 +10,10 @@ const UserMapper = require('./userMapper');
 
 // Mock fetch for testing
 global.fetch = async (url, options) => {
-  // Mock token endpoint
-  if (url.includes('login.microsoftonline.com')) {
+  const urlObj = new URL(url);
+  
+  // Mock token endpoint - check full hostname
+  if (urlObj.hostname === 'login.microsoftonline.com') {
     return {
       ok: true,
       json: async () => ({
@@ -21,9 +23,8 @@ global.fetch = async (url, options) => {
     };
   }
 
-  // Mock Graph API endpoints
-  if (url.includes('graph.microsoft.com')) {
-    const urlObj = new URL(url);
+  // Mock Graph API endpoints - check full hostname
+  if (urlObj.hostname === 'graph.microsoft.com') {
     
     // Mock user search by email or filter
     if (urlObj.pathname === '/v1.0/users' && urlObj.search.includes('filter')) {
