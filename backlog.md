@@ -24,12 +24,12 @@ Establish secure integration with GitHub Cloud to receive and process webhook ev
 ## Goals
 - Enable real-time webhook reception from GitHub Cloud
 - Authenticate and validate incoming webhook payloads
-- Route webhook events to appropriate Logic Apps workflows
+- Route webhook events to appropriate bot handlers
 - Provide GitHub API integration for retrieving repository and user data
 
 ## Success Metrics
 - 100% of GitHub webhooks successfully received and validated
-- < 2 second latency from webhook trigger to Logic App execution
+- < 500ms latency from webhook trigger to bot processing
 - Zero unauthorized webhook access attempts successful
 - API rate limits never exceeded
 
@@ -50,7 +50,7 @@ So that **GitHub can send real-time events to our ChatOps system**
 #### Acceptance Criteria
 - [ ] Given a deployed Azure app service, when GitHub sends a webhook event, then the endpoint receives and logs the payload
 - [ ] Given an incoming webhook, when the signature is validated, then only authentic GitHub requests are processed
-- [ ] Given multiple webhook event types, when they arrive, then each is routed to the correct Logic App workflow
+- [ ] Given multiple webhook event types, when they arrive, then each is routed to the correct bot handler
 - [ ] Given webhook failures, when they occur, then errors are logged and alerts are sent to the operations team
 
 #### Technical Notes
@@ -75,7 +75,7 @@ So that **GitHub can send real-time events to our ChatOps system**
 #### User Story
 As a **Backend Developer**
 I want **to create a GitHub API client library**
-So that **Logic Apps can query repository metadata, users, and configurations**
+So that **the bot can query repository metadata, users, and configurations**
 
 #### Acceptance Criteria
 - [ ] Given a GitHub repository, when queried via API, then repository owners are returned
@@ -210,7 +210,7 @@ So that **only critical and high severity issues trigger immediate notifications
 - Extract vulnerability details: CWE ID, CVSS score, affected file paths
 
 #### Labels
-`backend` `security` `logic-apps` `filtering`
+`backend` `security` `bot-handlers` `filtering`
 
 #### Dependencies
 - Code scanning webhook endpoint configured (Story 1.1)
@@ -241,7 +241,7 @@ So that **the responsible developer can be notified and take immediate action**
 - Support GitHub Enterprise Server if needed
 
 #### Labels
-`backend` `github` `logic-apps` `user-mapping`
+`backend` `github` `bot-handlers` `user-mapping`
 
 #### Dependencies
 - GitHub API client implemented (Story 1.2)
@@ -273,7 +273,7 @@ So that **they are included in critical security notifications**
 - Support email-based owner definition for non-GitHub users
 
 #### Labels
-`backend` `github` `logic-apps` `governance`
+`backend` `github` `bot-handlers` `governance`
 
 #### Dependencies
 - GitHub API client implemented (Story 1.2)
@@ -305,7 +305,7 @@ So that **security expertise is immediately available for critical vulnerabiliti
 - Log Security Champion assignments to audit trail
 
 #### Labels
-`backend` `github` `security` `logic-apps`
+`backend` `github` `security` `bot-handlers`
 
 #### Dependencies
 - GitHub API client implemented (Story 1.2)
@@ -337,7 +337,7 @@ So that **notifications can be sent to the correct Teams channels and users**
 - Handle guest users and external collaborators
 
 #### Labels
-`backend` `microsoft-graph` `teams` `logic-apps`
+`backend` `microsoft-graph` `teams` `bot-handlers`
 
 #### Dependencies
 - User mapping service (Story 1.3)
@@ -375,7 +375,7 @@ So that **I can quickly understand and remediate critical vulnerabilities**
 - Store notification status in database
 
 #### Labels
-`backend` `teams` `notifications` `ux` `logic-apps`
+`backend` `teams` `notifications` `ux` `bot-handlers`
 
 #### Dependencies
 - Teams integration configured (Epic 5)
@@ -429,7 +429,7 @@ So that **dependency vulnerabilities can be processed and routed for notificatio
 - Log all Dependabot alerts to Azure Log Analytics for trend analysis
 
 #### Labels
-`backend` `github` `security` `logic-apps`
+`backend` `github` `security` `bot-handlers`
 
 #### Dependencies
 - GitHub webhook endpoint configured (Story 1.1)
@@ -457,7 +457,7 @@ So that **the right security expert is immediately notified**
 - Log Security Champion assignments for audit purposes
 
 #### Labels
-`backend` `security` `logic-apps` `reuse`
+`backend` `security` `bot-handlers` `reuse`
 
 #### Dependencies
 - Security Champion identification implemented (Story 2.4)
@@ -489,7 +489,7 @@ So that **Dependabot notifications can be sent to all members when configured**
 - Support team-based notifications: if repository is owned by a team, notify team members
 
 #### Labels
-`backend` `github` `logic-apps` `configuration`
+`backend` `github` `bot-handlers` `configuration`
 
 #### Dependencies
 - GitHub API client implemented (Story 1.2)
@@ -519,7 +519,7 @@ So that **Dependabot notifications reach the correct people in Teams**
 - Log unmapped users for manual review
 
 #### Labels
-`backend` `microsoft-graph` `teams` `logic-apps`
+`backend` `microsoft-graph` `teams` `bot-handlers`
 
 #### Dependencies
 - User mapping service (Story 1.3)
@@ -557,7 +557,7 @@ So that **I can quickly assess and update vulnerable dependencies**
 - Store notification delivery status
 
 #### Labels
-`backend` `teams` `notifications` `security` `ux` `logic-apps`
+`backend` `teams` `notifications` `security` `ux` `bot-handlers`
 
 #### Dependencies
 - Teams integration configured (Epic 5)
@@ -614,7 +614,7 @@ So that **approval workflows can be initiated automatically**
 - Store deployment request in database with status "pending"
 
 #### Labels
-`backend` `github` `deployments` `logic-apps`
+`backend` `github` `deployments` `bot-handlers`
 
 #### Dependencies
 - GitHub webhook endpoint configured (Story 1.1)
@@ -646,7 +646,7 @@ So that **only authorized individuals can approve production deployments**
 - Cache environment protection rules (TTL: 10 minutes)
 
 #### Labels
-`backend` `github` `deployments` `authorization` `logic-apps`
+`backend` `github` `deployments` `authorization` `bot-handlers`
 
 #### Dependencies
 - GitHub API client implemented (Story 1.2)
@@ -676,7 +676,7 @@ So that **approval requests can be sent to the correct Teams users**
 - Log mapping statistics for audit
 
 #### Labels
-`backend` `microsoft-graph` `teams` `logic-apps`
+`backend` `microsoft-graph` `teams` `bot-handlers`
 
 #### Dependencies
 - User mapping service (Story 1.3)
@@ -717,7 +717,7 @@ So that **I can review deployment details and approve or reject from within Team
 - Store approval decisions in database with timestamp and approver ID
 
 #### Labels
-`backend` `teams` `notifications` `deployments` `ux` `logic-apps` `bot`
+`backend` `teams` `notifications` `deployments` `ux` `bot-handlers`
 
 #### Dependencies
 - Teams Bot Framework configured (Epic 5)
@@ -752,7 +752,7 @@ So that **deployments proceed or are blocked based on Teams approvals**
 - Notify deployment requestor of approval/rejection
 
 #### Labels
-`backend` `github` `teams` `deployments` `logic-apps`
+`backend` `github` `teams` `deployments` `bot-handlers`
 
 #### Dependencies
 - Deployment approval request sent (Story 4.4)
