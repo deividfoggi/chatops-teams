@@ -94,30 +94,83 @@ jobs:
           echo "App Service URL: https://${HOST_NAME}"
           echo "Resource Group: ${RESOURCE_GROUP}"
       
-      - name: Deploy to Azure App Service (Flex Consumption)
+      - name: Deploy to Azure App Service (Flex Consumption via Storage)
         run: |
-          # For Flex Consumption plans, use az webapp deploy command
-          # This uses Run From Package deployment which is supported
+          # For Flex Consumption plans, deploy via Azure Blob Storage
+          # This is the recommended method when SCM endpoint is not available
           echo "Deploying to Flex Consumption App Service: ${{ env.AZURE_WEBAPP_NAME }}"
           
-          # Upload and deploy the package
-          az webapp deploy \
-            --resource-group rg-chatops-dev \
+          # Get or create storage account for deployment packages
+          STORAGE_ACCOUNT="chatopsdeployments"
+          RESOURCE_GROUP="rg-chatops-dev"
+          CONTAINER_NAME="deployments"
+          
+          # Check if storage account exists
+          if ! az storage account show --name $STORAGE_ACCOUNT --resource-group $RESOURCE_GROUP &>/dev/null; then
+            echo "Creating storage account for deployments..."
+            az storage account create \
+              --name $STORAGE_ACCOUNT \
+              --resource-group $RESOURCE_GROUP \
+              --location eastus2 \
+              --sku Standard_LRS \
+              --kind StorageV2
+          fi
+          
+          # Create container if it doesn't exist
+          az storage container create \
+            --name $CONTAINER_NAME \
+            --account-name $STORAGE_ACCOUNT \
+            --auth-mode login \
+            --only-show-errors || true
+          
+          # Upload deployment package to blob storage
+          BLOB_NAME="chatops-app-$(date +%Y%m%d-%H%M%S).zip"
+          echo "Uploading deployment package: ${BLOB_NAME}"
+          
+          az storage blob upload \
+            --account-name $STORAGE_ACCOUNT \
+            --container-name $CONTAINER_NAME \
+            --name $BLOB_NAME \
+            --file deployment.zip \
+            --auth-mode login \
+            --overwrite
+          
+          # Generate SAS token with 1 year expiry
+          EXPIRY=$(date -u -d '+1 year' '+%Y-%m-%dT%H:%MZ' 2>/dev/null || date -u -v +1y '+%Y-%m-%dT%H:%MZ')
+          
+          SAS_TOKEN=$(az storage blob generate-sas \
+            --account-name $STORAGE_ACCOUNT \
+            --container-name $CONTAINER_NAME \
+            --name $BLOB_NAME \
+            --permissions r \
+            --expiry $EXPIRY \
+            --auth-mode login \
+            --as-user \
+            -o tsv)
+          
+          # Construct the blob URL with SAS token
+          BLOB_URL="https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER_NAME}/${BLOB_NAME}?${SAS_TOKEN}"
+          
+          # Update App Service to run from the new package
+          echo "Configuring App Service to run from package..."
+          az webapp config appsettings set \
+            --resource-group $RESOURCE_GROUP \
             --name ${{ env.AZURE_WEBAPP_NAME }} \
-            --src-path deployment.zip \
-            --type zip \
-            --async true
+            --settings WEBSITE_RUN_FROM_PACKAGE="$BLOB_URL" \
+            --output none
           
-          echo "Deployment initiated. Waiting for deployment to complete..."
-          sleep 15
+          echo "✅ Deployment package uploaded and configured"
+          echo "Package URL: https://${STORAGE_ACCOUNT}.blob.core.windows.net/${CONTAINER_NAME}/${BLOB_NAME}"
           
-          # Check deployment status
-          DEPLOYMENT_STATUS=$(az webapp deployment list \
-            --resource-group rg-chatops-dev \
+          # Restart the app to pick up the new package
+          echo "Restarting App Service..."
+          az webapp restart \
+            --resource-group $RESOURCE_GROUP \
             --name ${{ env.AZURE_WEBAPP_NAME }} \
-            --query '[0].status' -o tsv)
+            --output none
           
-          echo "Deployment status: ${DEPLOYMENT_STATUS}"
+          echo "✅ Deployment complete. Waiting for app to start..."
+          sleep 30
 
   health_check:
     name: Post-Deployment Health Check
