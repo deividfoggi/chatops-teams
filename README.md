@@ -112,6 +112,8 @@ All secrets are stored in Azure Key Vault. See:
 
 ### Infrastructure
 - [Infrastructure Overview](infrastructure/README.md) - Terraform configuration and architecture
+- [Infrastructure Deployment Guide](docs/infrastructure-deployment-guide.md) - Complete deployment instructions
+- [Environment Configurations](infrastructure/environments/README.md) - Environment-specific variable files
 - [Network Architecture](docs/network-architecture.md) - Network design and IP allocation
 
 ### Operations & Monitoring
@@ -168,16 +170,35 @@ npm run start:dev
 
 ### Infrastructure Deployment
 
-Deploy Azure infrastructure using Terraform:
+Deploy Azure infrastructure using Terraform with environment-specific configurations:
 
 ```bash
 cd infrastructure
-terraform init
-terraform plan -out=tfplan
+
+# Development
+terraform init \
+  -backend-config="resource_group_name=rg-terraform-state-chatops" \
+  -backend-config="storage_account_name=stterraformchatops19932" \
+  -backend-config="container_name=tfstate" \
+  -backend-config="key=dev.tfstate"
+terraform plan -var-file="environments/dev.tfvars" -out=tfplan
+terraform apply tfplan
+
+# Staging
+terraform plan -var-file="environments/staging.tfvars" -out=tfplan
+terraform apply tfplan
+
+# Production
+terraform plan -var-file="environments/prod.tfvars" -out=tfplan
 terraform apply tfplan
 ```
 
-See [Infrastructure README](infrastructure/README.md) for detailed instructions.
+**Automated Deployment:**
+- **Dev**: Automatically deploys on push to `develop` branch
+- **Staging**: Automatically deploys on push to `main` branch
+- **Production**: Deploys on push to `main` with manual approval
+
+See [Infrastructure Deployment Guide](docs/infrastructure-deployment-guide.md) for detailed instructions.
 
 ### Application Deployment
 
