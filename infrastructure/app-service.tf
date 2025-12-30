@@ -172,7 +172,7 @@ resource "azurerm_linux_web_app" "chatops" {
   }
 
   site_config {
-    always_on           = false  # Not supported in Flex Consumption
+    always_on           = false # Not supported in Flex Consumption
     http2_enabled       = true
     minimum_tls_version = "1.2"
 
@@ -218,7 +218,7 @@ resource "azurerm_linux_web_app" "chatops" {
     # General settings
     # Note: WEBSITE_NODE_DEFAULT_VERSION is not supported in Flex Consumption
     # Node version is configured via application_stack block in site_config
-    "WEBSITE_RUN_FROM_PACKAGE"     = "1"
+    "WEBSITE_RUN_FROM_PACKAGE" = "1"
   }
 
   tags = {

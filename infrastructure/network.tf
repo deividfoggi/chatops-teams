@@ -284,7 +284,7 @@ resource "azurerm_storage_account" "nsg_flow_logs" {
   account_tier             = "Standard"
   account_replication_type = "LRS"
   min_tls_version          = "TLS1_2"
-  
+
   # Note: Flow logs require either shared key access OR managed identity support
   # in the azurerm_network_watcher_flow_log resource (available in provider v4.0+).
   # Since we're using provider 3.58 and tenant disallows key-based auth,
