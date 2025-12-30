@@ -39,23 +39,22 @@ jobs:
       - name: Create deployment package
         run: |
           # Create a clean deployment package
-          mkdir -p ../deployment
-          cp -r * ../deployment/ 2>/dev/null || true
+          mkdir -p deployment
+          cp -r src/* deployment/ 2>/dev/null || true
           
           # Remove dev dependencies and reinstall for production
-          cd ../deployment
+          cd deployment
           npm ci --production
           
           # Create zip file for deployment
-          cd ..
-          zip -r deployment.zip deployment/
-        working-directory: ./src
+          zip -r ../deployment.zip .
+        working-directory: .
       
       - name: Upload deployment artifact
         uses: actions/upload-artifact@v4
         with:
           name: deployment-package
-          path: src/deployment.zip
+          path: deployment.zip
           retention-days: 1
 
   deploy:
