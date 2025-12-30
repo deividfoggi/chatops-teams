@@ -209,7 +209,8 @@ async function runEndToEndTest(avgRoutingTime) {
   console.log(`  Event Routing: ~${avgRoutingTime.toFixed(2)}ms`);
   console.log(`  Total Processing: ~${e2eTime}ms`);
   console.log(`  Target: < 500ms`);
-  console.log(`  Margin: ${(500 - e2eTime).toFixed(0)}ms`);
+  const margin = 500 - e2eTime;
+  console.log(`  Margin: ${margin >= 0 ? margin.toFixed(0) : '0 (EXCEEDED)'}ms`);
   
   console.log('\n🎉 Performance tests completed!');
   console.log('\nNote: These tests measure internal processing time only.');
