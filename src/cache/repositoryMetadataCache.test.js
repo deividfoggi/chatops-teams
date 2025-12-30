@@ -516,7 +516,10 @@ console.log('Test 15: RepositoryMetadataCache - performance test');
 })();
 
 // Wait for all async tests to complete
-setTimeout(() => {
+(async () => {
+  // Give async tests time to complete
+  await new Promise(resolve => setTimeout(resolve, 3000));
+  
   console.log('🎉 All Repository Metadata Cache tests passed!');
   console.log('\nTest Coverage:');
   console.log('✓ Cache metrics tracking and hit/miss ratio calculation');
@@ -537,4 +540,4 @@ setTimeout(() => {
   console.log('- Distributed caching across multiple instances');
   console.log('- Failover from Redis to in-memory cache');
   console.log('- Cache metrics in Application Insights');
-}, 3000);
+})();

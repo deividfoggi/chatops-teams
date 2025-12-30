@@ -84,7 +84,7 @@ class InMemoryCache {
   }
 
   async set(key, value, ttl = null) {
-    const ttlMs = ttl ? ttl * 1000 : this.ttlMs;
+    const ttlMs = ttl !== null ? ttl * 1000 : this.ttlMs;
     this.cache.set(key, {
       value,
       timestamp: Date.now(),
@@ -102,7 +102,11 @@ class InMemoryCache {
 
   async keys(pattern) {
     // Simple pattern matching for in-memory cache
-    const regex = new RegExp(pattern.replace(/\*/g, '.*'));
+    // Escape special regex characters except * which we want to convert to .*
+    const escapedPattern = pattern
+      .replace(/[.+?^${}()|[\]\\]/g, '\\$&')  // Escape special regex chars
+      .replace(/\*/g, '.*');  // Convert * to .*
+    const regex = new RegExp(`^${escapedPattern}$`);
     const matchingKeys = [];
     for (const key of this.cache.keys()) {
       if (regex.test(key)) {

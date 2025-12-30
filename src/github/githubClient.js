@@ -362,6 +362,8 @@ class GitHubClient {
    */
   async request(method, path, body = null, useCache = true, headers = {}) {
     const url = `${this.config.apiUrl}${path}`;
+    // Cache key includes full path with query parameters
+    // e.g., 'github:GET:/repos/owner/repo?per_page=100'
     const cacheKey = `github:${method}:${path}`;
 
     // Check distributed cache for GET requests
