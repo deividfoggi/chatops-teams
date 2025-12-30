@@ -39,8 +39,8 @@ async function handleCodeScanningAlert(payload, telemetryClient) {
       state: metadata.state,
       sender: sender?.login || 'unknown',
       shouldEscalate: String(shouldEscalate),
-      cweIds: metadata.cweIds.join(',') || 'none',
-      cveIds: metadata.cveIds.join(',') || 'none',
+      cweIds: metadata.cweIds.length > 0 ? metadata.cweIds.join(',') : 'none',
+      cveIds: metadata.cveIds.length > 0 ? metadata.cveIds.join(',') : 'none',
       cvssScore: metadata.cvssScore ? String(metadata.cvssScore) : 'none',
       ruleId: metadata.ruleId,
     });
