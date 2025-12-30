@@ -117,29 +117,6 @@ jobs:
               --allow-blob-public-access false
           fi
           
-          # Get the current service principal object ID
-          SP_OBJECT_ID=$(az ad sp show --id ${{ secrets.AZURE_CLIENT_ID }} --query id -o tsv)
-          echo "Service Principal Object ID: ${SP_OBJECT_ID}"
-          
-          # Get storage account resource ID
-          STORAGE_ID=$(az storage account show \
-            --name $STORAGE_ACCOUNT \
-            --resource-group $RESOURCE_GROUP \
-            --query id -o tsv)
-          
-          # Assign Storage Blob Data Contributor role to the service principal
-          echo "Assigning Storage Blob Data Contributor role..."
-          az role assignment create \
-            --role "Storage Blob Data Contributor" \
-            --assignee-object-id $SP_OBJECT_ID \
-            --assignee-principal-type ServicePrincipal \
-            --scope $STORAGE_ID \
-            --output none 2>/dev/null || echo "Role assignment already exists or completed"
-          
-          # Wait for RBAC propagation
-          echo "Waiting for RBAC propagation..."
-          sleep 10
-          
           # Create container if it doesn't exist
           az storage container create \
             --name $CONTAINER_NAME \
