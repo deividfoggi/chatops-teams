@@ -7,7 +7,6 @@
 
 const { GitHubClient } = require('../github/githubClient');
 const { RepositoryMetadataCache } = require('./index');
-const { getTelemetryClient } = require('../telemetry');
 
 /**
  * Example 1: Basic cache usage

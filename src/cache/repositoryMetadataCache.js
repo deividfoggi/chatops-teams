@@ -267,12 +267,15 @@ class RepositoryMetadataCache {
     try {
       if (this.client && this.isRedisConnected) {
         // Set maxmemory-policy to LRU
+        // Note: This requires CONFIG command permission in Redis
+        // Azure Cache for Redis may restrict this in some tiers
         await this.client.config('SET', 'maxmemory-policy', this.config.maxMemoryPolicy);
         console.log(`Redis LRU eviction policy configured: ${this.config.maxMemoryPolicy}`);
       }
     } catch (error) {
-      console.warn('Failed to configure LRU policy:', error.message);
-      // Non-critical error, continue
+      // CONFIG command may not be allowed (e.g., in some Azure Cache tiers)
+      // This is not critical - the policy can be set at Redis server level
+      console.warn('Failed to configure LRU policy (may require server-level configuration):', error.message);
     }
   }
 
@@ -512,7 +515,16 @@ class RepositoryMetadataCache {
       }
 
       if (this.isRedisConnected && this.client) {
-        await this.client.del(...keys);
+        // Use pipeline for large key deletions to avoid max args limit
+        if (keys.length > 1000) {
+          const pipeline = this.client.pipeline();
+          for (const key of keys) {
+            pipeline.del(key);
+          }
+          await pipeline.exec();
+        } else {
+          await this.client.del(...keys);
+        }
       } else {
         for (const key of keys) {
           await client.del(key);

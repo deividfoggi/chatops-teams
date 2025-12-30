@@ -629,7 +629,6 @@ class GitHubClient {
     for (const { owner, repo } of repositories) {
       try {
         const data = await this.getRepository(owner, repo);
-        const key = this.distributedCache.getRepositoryKey(owner, repo);
         repositoryData.push({ owner, repo, data });
       } catch (error) {
         console.warn(`Failed to fetch repository ${owner}/${repo} for cache warming:`, error.message);
