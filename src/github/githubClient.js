@@ -258,6 +258,8 @@ class GitHubClient {
   /**
    * Makes an HTTP request to GitHub API with retry logic
    * 
+   * Note: Uses Node.js built-in fetch (available in Node.js 18+)
+   * 
    * @param {string} method - HTTP method
    * @param {string} url - Full URL
    * @param {Object} [body] - Request body
