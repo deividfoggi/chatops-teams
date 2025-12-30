@@ -345,6 +345,9 @@ output "redis_port_secret_id" {
 output "redis_access_key_secret_id" {
   description = "The Key Vault secret ID for Redis access key"
   value       = azurerm_key_vault_secret.redis_access_key.id
+}
+
+# =============================================================================
 # App Service Plan Outputs
 # =============================================================================
 
