@@ -31,7 +31,9 @@
     "uuid": "^9.0.1"
   },
   "devDependencies": {
-    "c8": "^8.0.1"
+    "c8": "^8.0.1",
+    "eslint": "^9.39.2",
+    "eslint-plugin-security": "^3.0.1"
   },
   "engines": {
     "node": ">=18.0.0"
