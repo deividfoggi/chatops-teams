@@ -1,0 +1,340 @@
+name: 'Reusable: Azure Deployment Workflow'
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Target environment (dev, staging, production)'
+        required: true
+        type: string
+      app_service_name:
+        description: 'Name of the Azure App Service to deploy to'
+        required: true
+        type: string
+      resource_group:
+        description: 'Azure resource group containing the App Service'
+        required: true
+        type: string
+      deployment_package_path:
+        description: 'Path to the deployment package (zip file)'
+        required: true
+        type: string
+      health_check_url:
+        description: 'URL for health check endpoint (e.g., https://app.azurewebsites.net/health)'
+        required: true
+        type: string
+      notification_webhook_url:
+        description: 'Teams webhook URL for deployment notifications'
+        required: false
+        type: string
+        default: ''
+    
+    outputs:
+      deployment_status:
+        description: 'Deployment status (success/failure)'
+        value: ${{ jobs.deploy.outputs.deployment_status }}
+      health_check_result:
+        description: 'Health check result (healthy/unhealthy)'
+        value: ${{ jobs.deploy.outputs.health_check_result }}
+      deployment_url:
+        description: 'URL of the deployed application'
+        value: ${{ jobs.deploy.outputs.deployment_url }}
+
+jobs:
+  deploy:
+    name: Deploy to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    
+    outputs:
+      deployment_status: ${{ steps.set_outputs.outputs.deployment_status }}
+      health_check_result: ${{ steps.set_outputs.outputs.health_check_result }}
+      deployment_url: ${{ steps.set_outputs.outputs.deployment_url }}
+    
+    steps:
+      - name: Download deployment package
+        id: download_package
+        run: |
+          echo "Downloading deployment package from: ${{ inputs.deployment_package_path }}"
+          if [ ! -f "${{ inputs.deployment_package_path }}" ]; then
+            echo "❌ Error: Deployment package not found at ${{ inputs.deployment_package_path }}"
+            echo "deployment_error=Deployment package not found" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          echo "✅ Deployment package found"
+        continue-on-error: true
+      
+      - name: Azure Login (OIDC)
+        id: azure_login
+        if: steps.download_package.outcome == 'success'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          enable-AzPSSession: false
+        continue-on-error: true
+      
+      - name: Verify App Service exists
+        id: verify_app_service
+        if: steps.azure_login.outcome == 'success'
+        run: |
+          echo "Verifying App Service: ${{ inputs.app_service_name }} in resource group: ${{ inputs.resource_group }}"
+          
+          if ! az webapp show --name ${{ inputs.app_service_name }} --resource-group ${{ inputs.resource_group }} &>/dev/null; then
+            echo "❌ Error: App Service '${{ inputs.app_service_name }}' not found in resource group '${{ inputs.resource_group }}'"
+            echo "deployment_error=App Service not found" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          
+          # Get the default hostname
+          HOST_NAME=$(az webapp show --name ${{ inputs.app_service_name }} --resource-group ${{ inputs.resource_group }} --query 'defaultHostName' -o tsv)
+          echo "deployment_url=https://${HOST_NAME}" >> $GITHUB_OUTPUT
+          echo "✅ App Service verified: https://${HOST_NAME}"
+        continue-on-error: true
+      
+      - name: Deploy to Azure App Service
+        id: deploy_app
+        if: steps.verify_app_service.outcome == 'success'
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: ${{ inputs.app_service_name }}
+          package: ${{ inputs.deployment_package_path }}
+        continue-on-error: true
+      
+      - name: Wait for App Startup
+        if: steps.deploy_app.outcome == 'success'
+        run: |
+          echo "Waiting 30 seconds for application to start..."
+          sleep 30
+      
+      - name: Health Check with Retries
+        id: health_check
+        if: steps.deploy_app.outcome == 'success'
+        run: |
+          HEALTH_URL="${{ inputs.health_check_url }}"
+          MAX_ATTEMPTS=3
+          ATTEMPT=1
+          SUCCESS=false
+          
+          echo "Starting health check for: ${HEALTH_URL}"
+          
+          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
+            echo "🔍 Health check attempt $ATTEMPT of $MAX_ATTEMPTS"
+            
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${HEALTH_URL}" || echo "000")
+            
+            echo "HTTP Status Code: $HTTP_CODE"
+            
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Health check passed!"
+              echo "health_check_result=healthy" >> $GITHUB_OUTPUT
+              SUCCESS=true
+              break
+            fi
+            
+            echo "⚠️ Health check failed with status: $HTTP_CODE"
+            
+            if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+              echo "Waiting 10 seconds before retry..."
+              sleep 10
+            fi
+            
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+          
+          if [ "$SUCCESS" = "false" ]; then
+            echo "❌ Health check failed after $MAX_ATTEMPTS attempts"
+            echo "health_check_result=unhealthy" >> $GITHUB_OUTPUT
+            echo "health_check_error=Health check failed after $MAX_ATTEMPTS attempts with status code: $HTTP_CODE" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+        continue-on-error: true
+      
+      - name: Set Deployment Outputs
+        id: set_outputs
+        if: always()
+        run: |
+          # Determine deployment status
+          if [ "${{ steps.download_package.outcome }}" != "success" ]; then
+            echo "deployment_status=failure" >> $GITHUB_OUTPUT
+            echo "deployment_error=Failed to download deployment package" >> $GITHUB_OUTPUT
+          elif [ "${{ steps.azure_login.outcome }}" != "success" ]; then
+            echo "deployment_status=failure" >> $GITHUB_OUTPUT
+            echo "deployment_error=Azure login failed" >> $GITHUB_OUTPUT
+          elif [ "${{ steps.verify_app_service.outcome }}" != "success" ]; then
+            echo "deployment_status=failure" >> $GITHUB_OUTPUT
+            echo "deployment_error=App Service verification failed" >> $GITHUB_OUTPUT
+          elif [ "${{ steps.deploy_app.outcome }}" != "success" ]; then
+            echo "deployment_status=failure" >> $GITHUB_OUTPUT
+            echo "deployment_error=Deployment to App Service failed" >> $GITHUB_OUTPUT
+          elif [ "${{ steps.health_check.outcome }}" != "success" ]; then
+            echo "deployment_status=failure" >> $GITHUB_OUTPUT
+            echo "deployment_error=Health check failed" >> $GITHUB_OUTPUT
+          else
+            echo "deployment_status=success" >> $GITHUB_OUTPUT
+          fi
+          
+          # Set health check result
+          if [ -n "${{ steps.health_check.outputs.health_check_result }}" ]; then
+            echo "health_check_result=${{ steps.health_check.outputs.health_check_result }}" >> $GITHUB_OUTPUT
+          else
+            echo "health_check_result=not_run" >> $GITHUB_OUTPUT
+          fi
+          
+          # Set deployment URL
+          if [ -n "${{ steps.verify_app_service.outputs.deployment_url }}" ]; then
+            echo "deployment_url=${{ steps.verify_app_service.outputs.deployment_url }}" >> $GITHUB_OUTPUT
+          else
+            echo "deployment_url=N/A" >> $GITHUB_OUTPUT
+          fi
+          
+          # Display summary
+          echo "=== Deployment Summary ==="
+          echo "Status: $([ '${{ steps.set_outputs.outputs.deployment_status }}' = 'success' ] && echo '✅ Success' || echo '❌ Failed')"
+          echo "Health Check: ${{ steps.health_check.outputs.health_check_result }}"
+          echo "URL: ${{ steps.verify_app_service.outputs.deployment_url }}"
+      
+      - name: Send Teams Notification
+        if: always() && inputs.notification_webhook_url != ''
+        run: |
+          DEPLOY_STATUS="${{ steps.set_outputs.outputs.deployment_status }}"
+          HEALTH_STATUS="${{ steps.set_outputs.outputs.health_check_result }}"
+          DEPLOY_URL="${{ steps.set_outputs.outputs.deployment_url }}"
+          COMMIT_SHA="${{ github.sha }}"
+          SHORT_SHA="${COMMIT_SHA:0:7}"
+          
+          # Determine overall status and icon
+          if [ "$DEPLOY_STATUS" = "success" ] && [ "$HEALTH_STATUS" = "healthy" ]; then
+            STATUS="Success"
+            STATUS_ICON="✅"
+            COLOR="good"
+          else
+            STATUS="Failed"
+            STATUS_ICON="❌"
+            COLOR="attention"
+          fi
+          
+          # Build error details if any
+          ERROR_DETAILS=""
+          if [ "$DEPLOY_STATUS" = "failure" ]; then
+            if [ -n "${{ steps.download_package.outputs.deployment_error }}" ]; then
+              ERROR_DETAILS="Error: ${{ steps.download_package.outputs.deployment_error }}"
+            elif [ -n "${{ steps.verify_app_service.outputs.deployment_error }}" ]; then
+              ERROR_DETAILS="Error: ${{ steps.verify_app_service.outputs.deployment_error }}"
+            elif [ -n "${{ steps.health_check.outputs.health_check_error }}" ]; then
+              ERROR_DETAILS="Error: ${{ steps.health_check.outputs.health_check_error }}"
+            else
+              ERROR_DETAILS="Error: Deployment failed at one of the deployment steps"
+            fi
+          fi
+          
+          # Create Teams notification payload
+          cat > notification.json <<EOF
+          {
+            "type": "message",
+            "attachments": [{
+              "contentType": "application/vnd.microsoft.card.adaptive",
+              "content": {
+                "type": "AdaptiveCard",
+                "version": "1.4",
+                "body": [{
+                  "type": "TextBlock",
+                  "text": "${STATUS_ICON} Azure Deployment - ${{ inputs.environment }}",
+                  "weight": "Bolder",
+                  "size": "Large"
+                }, {
+                  "type": "FactSet",
+                  "facts": [
+                    {"title": "Status", "value": "${STATUS}"},
+                    {"title": "Environment", "value": "${{ inputs.environment }}"},
+                    {"title": "App Service", "value": "${{ inputs.app_service_name }}"},
+                    {"title": "Resource Group", "value": "${{ inputs.resource_group }}"},
+                    {"title": "Deployment", "value": "${DEPLOY_STATUS}"},
+                    {"title": "Health Check", "value": "${HEALTH_STATUS}"},
+                    {"title": "URL", "value": "${DEPLOY_URL}"},
+                    {"title": "Deployed by", "value": "${{ github.actor }}"},
+                    {"title": "Commit", "value": "${SHORT_SHA}"}
+                  ]
+                }$(if [ -n "$ERROR_DETAILS" ]; then echo ", {
+                  \"type\": \"TextBlock\",
+                  \"text\": \"${ERROR_DETAILS}\",
+                  \"color\": \"attention\",
+                  \"wrap\": true
+                }"; fi)],
+                "actions": [{
+                  "type": "Action.OpenUrl",
+                  "title": "View Workflow",
+                  "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                }$(if [ "${DEPLOY_URL}" != "N/A" ]; then echo ", {
+                  \"type\": \"Action.OpenUrl\",
+                  \"title\": \"Open Application\",
+                  \"url\": \"${DEPLOY_URL}\"
+                }"; fi)]
+              }
+            }]
+          }
+          EOF
+          
+          # Send notification
+          curl -H "Content-Type: application/json" -d @notification.json "${{ inputs.notification_webhook_url }}"
+          echo "✅ Teams notification sent"
+      
+      - name: Create Deployment Summary
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const deployStatus = '${{ steps.set_outputs.outputs.deployment_status }}';
+            const healthStatus = '${{ steps.set_outputs.outputs.health_check_result }}';
+            const deployUrl = '${{ steps.set_outputs.outputs.deployment_url }}';
+            const environment = '${{ inputs.environment }}';
+            const appService = '${{ inputs.app_service_name }}';
+            const resourceGroup = '${{ inputs.resource_group }}';
+            
+            const statusIcon = deployStatus === 'success' ? '✅' : '❌';
+            const healthIcon = healthStatus === 'healthy' ? '✅' : (healthStatus === 'unhealthy' ? '❌' : '⚠️');
+            
+            let summary = `## ${statusIcon} Azure Deployment - ${environment}\n\n`;
+            summary += `| Component | Status |\n`;
+            summary += `|-----------|--------|\n`;
+            summary += `| Deployment | ${deployStatus === 'success' ? '✅ Success' : '❌ Failed'} |\n`;
+            summary += `| Health Check | ${healthIcon} ${healthStatus} |\n\n`;
+            summary += `### Deployment Details\n`;
+            summary += `- **Environment:** \`${environment}\`\n`;
+            summary += `- **App Service:** \`${appService}\`\n`;
+            summary += `- **Resource Group:** \`${resourceGroup}\`\n`;
+            summary += `- **URL:** ${deployUrl}\n`;
+            summary += `- **Deployed by:** @${{ github.actor }}\n`;
+            summary += `- **Commit:** \`${{ github.sha }}\`.substring(0, 7)\n\n`;
+            
+            if (deployStatus === 'failure') {
+              summary += `### ⚠️ Deployment Failed\n\n`;
+              summary += `Please check the workflow logs for detailed error information.\n\n`;
+            }
+            
+            summary += `---\n`;
+            summary += `*Workflow: \`${{ github.workflow }}\` | Run: #${{ github.run_number }}*`;
+            
+            core.summary.addRaw(summary).write();
+      
+      - name: Handle Deployment Failure
+        if: failure()
+        run: |
+          echo "=================================="
+          echo "❌ DEPLOYMENT FAILED"
+          echo "=================================="
+          echo "Environment: ${{ inputs.environment }}"
+          echo "App Service: ${{ inputs.app_service_name }}"
+          echo "Resource Group: ${{ inputs.resource_group }}"
+          echo ""
+          echo "Failed Step Details:"
+          echo "- Package Download: ${{ steps.download_package.outcome }}"
+          echo "- Azure Login: ${{ steps.azure_login.outcome }}"
+          echo "- App Service Verification: ${{ steps.verify_app_service.outcome }}"
+          echo "- Deployment: ${{ steps.deploy_app.outcome }}"
+          echo "- Health Check: ${{ steps.health_check.outcome }}"
+          echo ""
+          echo "Please review the logs above for detailed error information."
+          echo "=================================="
+          exit 1
