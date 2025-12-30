@@ -337,10 +337,14 @@ output "app_service_url" {
 
 output "app_service_identity_principal_id" {
   description = "The principal ID of the App Service managed identity"
-  value       = try(azurerm_linux_web_app.chatops.identity[0].principal_id, null)
+  # Using try() to safely access identity block in case the identity configuration is changed
+  # or the App Service is recreated without identity during deployment
+  value = try(azurerm_linux_web_app.chatops.identity[0].principal_id, null)
 }
 
 output "app_service_identity_tenant_id" {
   description = "The tenant ID of the App Service managed identity"
-  value       = try(azurerm_linux_web_app.chatops.identity[0].tenant_id, null)
+  # Using try() to safely access identity block in case the identity configuration is changed
+  # or the App Service is recreated without identity during deployment
+  value = try(azurerm_linux_web_app.chatops.identity[0].tenant_id, null)
 }

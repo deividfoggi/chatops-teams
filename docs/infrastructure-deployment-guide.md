@@ -35,10 +35,12 @@ Before deploying the infrastructure, ensure you have:
 
 2. **Azure CLI** (for manual deployment)
    ```bash
-   az --version  # Should be 2.50.0 or higher
+   az --version  # Should be 2.50.0 or higher (2.60.0+ recommended for Terraform azurerm provider ~> 3.58)
    az login
    az account set --subscription "YOUR_SUBSCRIPTION_ID"
    ```
+   
+   > **Note**: Azure CLI 2.60.0 or later is recommended for full compatibility with Terraform azurerm provider 3.58+. While 2.50.0 is the minimum supported version, newer versions provide better error handling and feature support.
 
 3. **Terraform** (for manual deployment)
    ```bash

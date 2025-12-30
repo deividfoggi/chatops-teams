@@ -32,11 +32,17 @@ provider "azurerm" {
   storage_use_azuread = true
 }
 
+# Local variables for improved readability
+locals {
+  is_production_environment = var.environment == "prod"
+}
+
 # Validate production environment requirements
+# Production deployments require proper RBAC configuration for Key Vault access
 resource "terraform_data" "validate_production_rbac" {
   lifecycle {
     precondition {
-      condition     = var.environment != "prod" || (var.admin_group_object_id != null && var.devops_sp_object_id != null)
+      condition     = !local.is_production_environment || (var.admin_group_object_id != null && var.devops_sp_object_id != null)
       error_message = "Production environment requires both admin_group_object_id and devops_sp_object_id to be set for proper Key Vault RBAC configuration."
     }
   }

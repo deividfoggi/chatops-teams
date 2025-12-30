@@ -253,6 +253,7 @@ jobs:
           echo "app_url=$(terraform output -raw app_service_url 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
           echo "kv_name=$(terraform output -raw key_vault_name 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
           echo "appgw_ip=$(terraform output -raw application_gateway_public_ip_address 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
+          echo "rg_name=$(terraform output -raw resource_group_name 2>/dev/null || echo 'N/A')" >> $GITHUB_OUTPUT
         env:
           ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
@@ -271,8 +272,10 @@ jobs:
             while [ $attempt -le $max_attempts ]; do
               echo "Attempt $attempt of $max_attempts"
               
-              # Test without Host header first (basic connectivity)
-              response=$(curl -k -s -o /dev/null -w "%{http_code}" "https://$APPGW_IP/" || echo "000")
+              # Note: Using -k to skip SSL verification during initial deployment
+              # In production, SSL certificates should be properly configured
+              # TODO: Configure custom domain and SSL certificate for proper validation
+              response=$(curl -k -s -o /dev/null -w "%{http_code}" "https://$APPGW_IP/" 2>/dev/null || echo "000")
               
               if [ "$response" = "200" ] || [ "$response" = "404" ]; then
                 echo "✅ Application Gateway is responding (HTTP $response)"
@@ -335,8 +338,13 @@ jobs:
       - name: Check Resource Group Status
         run: |
           echo "Checking resource group status..."
-          # Get resource group name from Terraform or environment
-          RG_NAME="rg-chatops-${{ env.ENVIRONMENT }}"
+          # Get resource group name from Terraform output
+          RG_NAME="${{ steps.infra.outputs.rg_name }}"
+          
+          if [ "$RG_NAME" = "N/A" ]; then
+            echo "⚠️  Resource group name not available from Terraform outputs"
+            exit 0
+          fi
           
           # Verify resource group exists
           if ! az group show --name "$RG_NAME" --query id -o tsv > /dev/null 2>&1; then
@@ -346,7 +354,7 @@ jobs:
           
           # Get resource count and status
           RESOURCE_COUNT=$(az resource list -g "$RG_NAME" --query "length([])" -o tsv)
-          echo "✅ Resource group contains $RESOURCE_COUNT resources"
+          echo "✅ Resource group $RG_NAME contains $RESOURCE_COUNT resources"
           
           # List key resources
           echo "Key resources:"
