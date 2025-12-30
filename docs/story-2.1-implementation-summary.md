@@ -315,6 +315,16 @@ The implementation is production-ready:
 - Automated threshold recommendations
 - Custom rules engine for complex filtering
 
+### Potential Optimizations (from Code Review)
+- Use Set for deduplication in CWE/CVE extraction (O(n) vs O(n²) complexity)
+- Extract telemetry array formatting into helper function
+- Consider migration to Jest/Mocha test framework (low priority - current approach works)
+
+These optimizations are not critical for the current implementation as:
+- Alert payloads typically have < 10 CWE/CVE IDs (performance impact negligible)
+- Test infrastructure is consistent with existing repository patterns
+- Code duplication is minimal and localized
+
 ## Minimal Changes Approach
 
 This implementation follows the "smallest possible changes" principle:
