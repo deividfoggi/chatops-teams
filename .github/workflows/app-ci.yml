@@ -44,15 +44,54 @@ jobs:
         continue-on-error: true
       
       - name: Run unit tests
-        id: test
+        id: test_unit
         run: npm run test:unit
         working-directory: ./src
       
-      - name: Run tests with coverage
+      - name: Run integration tests
+        id: test_integration
+        run: npm run test:integration
+        working-directory: ./src
+      
+      - name: Run performance tests
+        id: test_performance
+        run: npm run test:performance
+        working-directory: ./src
+      
+      - name: Run all tests
+        id: test_all
+        run: npm run test:all
+        working-directory: ./src
+      
+      - name: Generate coverage report
         id: coverage
-        run: npm run test:coverage
+        run: |
+          npm run test:coverage || true
+          # Store coverage percentage for reporting
+          if [ -f coverage/coverage-summary.json ]; then
+            COVERAGE_LINES=$(cat coverage/coverage-summary.json | grep -o '"lines":{"total":[0-9]*,"covered":[0-9]*,"skipped":[0-9]*,"pct":[0-9.]*' | grep -o 'pct":[0-9.]*' | cut -d: -f2)
+            COVERAGE_FUNCTIONS=$(cat coverage/coverage-summary.json | grep -o '"functions":{"total":[0-9]*,"covered":[0-9]*,"skipped":[0-9]*,"pct":[0-9.]*' | grep -o 'pct":[0-9.]*' | cut -d: -f2 | head -1)
+            COVERAGE_BRANCHES=$(cat coverage/coverage-summary.json | grep -o '"branches":{"total":[0-9]*,"covered":[0-9]*,"skipped":[0-9]*,"pct":[0-9.]*' | grep -o 'pct":[0-9.]*' | cut -d: -f2 | head -1)
+            echo "COVERAGE_LINES=${COVERAGE_LINES:-0}" >> $GITHUB_ENV
+            echo "COVERAGE_FUNCTIONS=${COVERAGE_FUNCTIONS:-0}" >> $GITHUB_ENV
+            echo "COVERAGE_BRANCHES=${COVERAGE_BRANCHES:-0}" >> $GITHUB_ENV
+          else
+            echo "COVERAGE_LINES=0" >> $GITHUB_ENV
+            echo "COVERAGE_FUNCTIONS=0" >> $GITHUB_ENV
+            echo "COVERAGE_BRANCHES=0" >> $GITHUB_ENV
+          fi
         working-directory: ./src
         continue-on-error: true
+      
+      - name: Upload coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-reports
+          path: |
+            src/coverage/lcov.info
+            src/coverage/coverage-summary.json
+          retention-days: 30
       
       - name: Post Lint Results
         if: steps.lint.outcome == 'failure'
@@ -66,26 +105,55 @@ jobs:
               body: '⚠️ **Linting Issues Detected**\n\nPlease run `npm run lint` in the `src/` directory and fix any linting issues.'
             })
       
-      - name: Post Test Results
+      - name: Post Test Results with Coverage
         if: always()
         uses: actions/github-script@v7
         with:
           script: |
-            const testStatus = '${{ steps.test.outcome }}' === 'success' ? '✅' : '❌';
-            const lintStatus = '${{ steps.lint.outcome }}' === 'success' ? '✅' : '⚠️';
-            const coverageStatus = '${{ steps.coverage.outcome }}' === 'success' ? '✅ >80%' : '⚠️ <80%';
+            const testUnitStatus = '${{ steps.test_unit.outcome }}' === 'success' ? '✅ Passed' : '❌ Failed';
+            const testIntegrationStatus = '${{ steps.test_integration.outcome }}' === 'success' ? '✅ Passed' : '❌ Failed';
+            const testPerformanceStatus = '${{ steps.test_performance.outcome }}' === 'success' ? '✅ Passed' : '❌ Failed';
+            const testAllStatus = '${{ steps.test_all.outcome }}' === 'success' ? '✅ Passed' : '❌ Failed';
+            const lintStatus = '${{ steps.lint.outcome }}' === 'success' ? '✅ Passed' : '⚠️ Issues';
             
-            const output = `### Application CI Results
+            // Coverage data
+            const coverageLines = '${{ env.COVERAGE_LINES }}' || '0';
+            const coverageFunctions = '${{ env.COVERAGE_FUNCTIONS }}' || '0';
+            const coverageBranches = '${{ env.COVERAGE_BRANCHES }}' || '0';
             
-            | Check | Status |
-            |-------|--------|
-            | Linting | ${lintStatus} |
-            | Unit Tests | ${testStatus} |
-            | Code Coverage | ${coverageStatus} |
+            const coverageIcon = parseFloat(coverageLines) >= 80 ? '✅' : '⚠️';
+            const coverageStatus = `${coverageIcon} Lines: ${coverageLines}% | Functions: ${coverageFunctions}% | Branches: ${coverageBranches}%`;
             
-            *Note: Coverage threshold is informational. Full test coverage will be improved in future stories.*
+            let output = `## 🧪 Test Results & Coverage
             
-            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
+### Test Execution
+
+| Test Type | Status |
+|-----------|--------|
+| Linting | ${lintStatus} |
+| Unit Tests | ${testUnitStatus} |
+| Integration Tests | ${testIntegrationStatus} |
+| Performance Tests | ${testPerformanceStatus} |
+| All Tests | ${testAllStatus} |
+
+### Code Coverage
+
+${coverageStatus}
+
+**Target:** 80% coverage for lines, functions, and branches
+
+`;
+
+            // Add test failure details if any failed
+            if (testAllStatus.includes('Failed')) {
+              output += `\n⚠️ **Action Required**: Some tests failed. Please review the logs for details and stack traces.\n`;
+            }
+            
+            if (parseFloat(coverageLines) < 80) {
+              output += `\n📊 **Coverage Info**: Current coverage is below 80% threshold. This is informational and will be improved in future stories.\n`;
+            }
+            
+            output += `\n---\n*Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
             
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -93,6 +161,7 @@ jobs:
               repo: context.repo.repo,
               body: output
             })
+
 
   codeql_analysis:
     name: CodeQL Security Analysis

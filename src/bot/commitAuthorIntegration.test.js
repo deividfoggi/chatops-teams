@@ -93,7 +93,7 @@ console.log('Test 1: Code scanning alert with commit author');
 
     const result = await handleCodeScanningAlert(payload, mockTelemetryClient, mockClient);
 
-    assert.strictEqual(result.status, 'processed');
+    assert.strictEqual(result.status, 'escalated'); // High severity should escalate
     assert.strictEqual(result.eventType, 'code_scanning_alert');
     assert.ok(result.authorIdentification, 'Should have author identification');
     assert.strictEqual(result.authorIdentification.success, true);
@@ -163,7 +163,7 @@ setTimeout(async () => {
 
     const result = await handleCodeScanningAlert(payload, mockTelemetryClient, mockClient);
 
-    assert.strictEqual(result.status, 'processed');
+    assert.strictEqual(result.status, 'logged'); // Medium severity should log, not escalate
     assert.ok(result.authorIdentification);
     assert.strictEqual(result.authorIdentification.success, true);
     assert.strictEqual(result.authorIdentification.isBotCommit, true);
@@ -206,7 +206,7 @@ setTimeout(async () => {
 
     const result = await handleCodeScanningAlert(payload, mockTelemetryClient, mockClient);
 
-    assert.strictEqual(result.status, 'processed');
+    assert.strictEqual(result.status, 'logged'); // Low severity should log, not escalate
     assert.ok(result.authorIdentification);
     assert.strictEqual(result.authorIdentification.success, false);
     assert.strictEqual(result.authorIdentification.reason, 'no_commit_sha');
@@ -246,7 +246,7 @@ setTimeout(async () => {
     // Call without GitHub client (backwards compatibility)
     const result = await handleCodeScanningAlert(payload, mockTelemetryClient);
 
-    assert.strictEqual(result.status, 'processed');
+    assert.strictEqual(result.status, 'escalated'); // High severity should escalate
     assert.strictEqual(result.authorIdentification, undefined);
 
     console.log('✅ Code scanning alert without GitHub client test passed\n');
@@ -311,7 +311,7 @@ setTimeout(async () => {
 
     const result = await routeWebhookEvent('code_scanning_alert', payload, mockTelemetryClient, mockClient);
 
-    assert.strictEqual(result.status, 'processed');
+    assert.strictEqual(result.status, 'escalated'); // Critical severity should escalate
     assert.ok(result.authorIdentification);
     assert.strictEqual(result.authorIdentification.success, true);
     assert.strictEqual(result.authorIdentification.isMergeCommit, true);
@@ -348,7 +348,7 @@ setTimeout(async () => {
 
     const result = await handleCodeScanningAlert(payload, mockTelemetryClient, mockClient);
 
-    assert.strictEqual(result.status, 'processed');
+    assert.strictEqual(result.status, 'escalated'); // High severity should escalate even with API error
     assert.ok(result.authorIdentification);
     assert.strictEqual(result.authorIdentification.success, false);
     assert.strictEqual(result.authorIdentification.reason, 'api_error');
