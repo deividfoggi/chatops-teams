@@ -94,11 +94,30 @@ jobs:
           echo "App Service URL: https://${HOST_NAME}"
           echo "Resource Group: ${RESOURCE_GROUP}"
       
-      - name: Deploy to Azure App Service
-        uses: azure/webapps-deploy@v2
-        with:
-          app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          package: deployment.zip
+      - name: Deploy to Azure App Service (Flex Consumption)
+        run: |
+          # For Flex Consumption plans, use az webapp deploy command
+          # This uses Run From Package deployment which is supported
+          echo "Deploying to Flex Consumption App Service: ${{ env.AZURE_WEBAPP_NAME }}"
+          
+          # Upload and deploy the package
+          az webapp deploy \
+            --resource-group rg-chatops-dev \
+            --name ${{ env.AZURE_WEBAPP_NAME }} \
+            --src-path deployment.zip \
+            --type zip \
+            --async true
+          
+          echo "Deployment initiated. Waiting for deployment to complete..."
+          sleep 15
+          
+          # Check deployment status
+          DEPLOYMENT_STATUS=$(az webapp deployment list \
+            --resource-group rg-chatops-dev \
+            --name ${{ env.AZURE_WEBAPP_NAME }} \
+            --query '[0].status' -o tsv)
+          
+          echo "Deployment status: ${DEPLOYMENT_STATUS}"
 
   health_check:
     name: Post-Deployment Health Check
