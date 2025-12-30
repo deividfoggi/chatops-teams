@@ -93,14 +93,14 @@ jobs:
         run: |
           echo "Verifying App Service: ${{ inputs.app_service_name }} in resource group: ${{ inputs.resource_group }}"
           
-          if ! az webapp show --name ${{ inputs.app_service_name }} --resource-group ${{ inputs.resource_group }} &>/dev/null; then
+          if ! az webapp show --name "${{ inputs.app_service_name }}" --resource-group "${{ inputs.resource_group }}" &>/dev/null; then
             echo "❌ Error: App Service '${{ inputs.app_service_name }}' not found in resource group '${{ inputs.resource_group }}'"
             echo "deployment_error=App Service not found" >> $GITHUB_OUTPUT
             exit 1
           fi
           
           # Get the default hostname
-          HOST_NAME=$(az webapp show --name ${{ inputs.app_service_name }} --resource-group ${{ inputs.resource_group }} --query 'defaultHostName' -o tsv)
+          HOST_NAME=$(az webapp show --name "${{ inputs.app_service_name }}" --resource-group "${{ inputs.resource_group }}" --query 'defaultHostName' -o tsv)
           echo "deployment_url=https://${HOST_NAME}" >> $GITHUB_OUTPUT
           echo "✅ App Service verified: https://${HOST_NAME}"
         continue-on-error: true
