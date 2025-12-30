@@ -55,6 +55,7 @@ The infrastructure includes the following core components:
 | Key Vault | Secure storage for secrets, keys, and certificates |
 | App Service Plan | PremiumV3 P1v3 (2 cores, 8GB RAM) with autoscaling |
 | App Service | Linux-based web app with VNet integration |
+| Azure Cache for Redis | Premium P1 (6GB) distributed caching with persistence |
 
 ## IP Allocation Strategy
 
@@ -75,6 +76,7 @@ For the complete IP allocation strategy including subnet design, future planning
 | app-subnet | 10.0.1.0/24 | 251 | Application workloads (App Service, Container Apps) |
 | gateway-subnet | 10.0.2.0/24 | 251 | API Gateway and ingress controllers |
 | database-subnet | 10.0.3.0/24 | 251 | Database services (Azure SQL, CosmosDB) - Reserved for Sprint 2 |
+| chatops-redis-subnet | 10.0.4.0/24 | 251 | Azure Cache for Redis with VNet injection |
 
 > **Note:** Azure reserves 5 IP addresses in each subnet (first 4 and last 1), reducing the usable count from 256 to 251 per /24 subnet.
 
@@ -266,11 +268,14 @@ See the [Infrastructure Deployment Guide](../docs/infrastructure-deployment-guid
 | `azurerm_virtual_network` | chatops_vnet | Network isolation |
 | `azurerm_subnet` | app_subnet | App Service VNet integration |
 | `azurerm_subnet` | gateway_subnet | Application Gateway subnet |
+| `azurerm_subnet` | redis_subnet | Azure Cache for Redis VNet injection |
 | `azurerm_log_analytics_workspace` | chatops | Monitoring and logging |
 | `azurerm_application_insights` | chatops | Application performance monitoring |
 | `azurerm_key_vault` | chatops | Secrets management |
 | `azurerm_service_plan` | chatops | App Service Plan (PremiumV3 P1v3) |
 | `azurerm_linux_web_app` | chatops | Linux web application |
+| `azurerm_redis_cache` | chatops | Premium P1 Redis cache with persistence |
+| `azurerm_storage_account` | redis_backup | Storage for Redis RDB backups |
 | `azurerm_monitor_autoscale_setting` | chatops_app_plan | Autoscaling for App Service Plan |
 | `azurerm_role_assignment` | kv_admin | Key Vault Administrator role (admin group) |
 | `azurerm_role_assignment` | kv_secrets_officer | Key Vault Secrets Officer role (DevOps SP) |
@@ -339,10 +344,51 @@ The following secrets are stored in Key Vault with placeholder values for Sprint
 | `bot-app-id` | Teams Bot application ID | 365 days |
 | `bot-app-password` | Teams Bot client secret | 90 days |
 | `entra-client-secret` | Entra ID client secret for SSO | 90 days |
+| `redis-host` | Azure Cache for Redis hostname | 365 days |
+| `redis-port` | Azure Cache for Redis SSL port (6380) | 365 days |
+| `redis-access-key` | Azure Cache for Redis primary access key | 90 days |
 
 > **Important:** Secrets are created with dummy/placeholder values. Update with production values during deployment.
 
 For detailed information on Key Vault usage and secret rotation, see [Key Vault Usage Guide](../docs/key-vault-usage.md).
+
+## Azure Cache for Redis Configuration
+
+The Redis cache is configured for distributed caching across multiple App Service instances:
+
+### Cache Tier
+- **SKU**: Premium P1 (6GB capacity)
+- **Benefits**: Data persistence, geo-replication support, VNet injection
+
+### Security Features
+- **TLS Version**: Minimum TLS 1.2
+- **SSL Port**: 6380 (non-SSL port disabled)
+- **Network**: VNet injection into dedicated subnet (10.0.4.0/24)
+- **Access**: Only accessible from within the VNet
+
+### Data Persistence
+- **Type**: RDB (Redis Database) snapshots
+- **Frequency**: Every 15 minutes
+- **Storage**: Dedicated storage account with LRS replication
+- **Max Snapshots**: 1 (most recent)
+
+### Cache Configuration
+- **Eviction Policy**: `allkeys-lru` (Least Recently Used)
+- **Keyspace Events**: `KEx` (expired and evicted keys)
+
+### Monitoring & Alerts
+- **Server Load Alert**: Triggers when CPU > 90% for 5 minutes
+- **Cache Miss Alert**: Triggers when miss rate > 50% for 10 minutes
+- **Connection Errors**: Triggers when > 5 errors in 5 minutes
+- **Memory Usage Alert**: Triggers when memory > 90%
+- **Diagnostics**: All logs sent to Log Analytics workspace
+
+### Environment Variables
+App Service is configured with the following Redis environment variables:
+- `REDIS_HOST`: Retrieved from Key Vault
+- `REDIS_PORT`: Retrieved from Key Vault (6380)
+- `REDIS_PASSWORD`: Retrieved from Key Vault
+- `REDIS_TLS`: Set to `true`
 
 ## Contributing
 

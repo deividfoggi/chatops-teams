@@ -222,3 +222,87 @@ resource "azurerm_key_vault_secret" "entra_client_secret" {
     azurerm_key_vault.chatops
   ]
 }
+
+# -----------------------------------------------------------------------------
+# Redis Host Secret
+# -----------------------------------------------------------------------------
+# The hostname for connecting to Azure Cache for Redis.
+# This is automatically populated from the Redis cache resource.
+# Recommended expiration: 365 days (infrastructure configuration)
+# -----------------------------------------------------------------------------
+
+resource "azurerm_key_vault_secret" "redis_host" {
+  name         = "redis-host"
+  value        = azurerm_redis_cache.chatops.hostname
+  key_vault_id = azurerm_key_vault.chatops.id
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    SecretType  = "ConnectionString"
+    Service     = "Redis"
+    Owner       = var.owner
+    ManagedBy   = "Terraform"
+  }
+
+  depends_on = [
+    azurerm_key_vault.chatops,
+    azurerm_redis_cache.chatops
+  ]
+}
+
+# -----------------------------------------------------------------------------
+# Redis Port Secret
+# -----------------------------------------------------------------------------
+# The SSL port for connecting to Azure Cache for Redis.
+# Default is 6380 for SSL connections.
+# Recommended expiration: 365 days (infrastructure configuration)
+# -----------------------------------------------------------------------------
+
+resource "azurerm_key_vault_secret" "redis_port" {
+  name         = "redis-port"
+  value        = tostring(azurerm_redis_cache.chatops.ssl_port)
+  key_vault_id = azurerm_key_vault.chatops.id
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    SecretType  = "Configuration"
+    Service     = "Redis"
+    Owner       = var.owner
+    ManagedBy   = "Terraform"
+  }
+
+  depends_on = [
+    azurerm_key_vault.chatops,
+    azurerm_redis_cache.chatops
+  ]
+}
+
+# -----------------------------------------------------------------------------
+# Redis Access Key Secret
+# -----------------------------------------------------------------------------
+# The primary access key for authenticating to Azure Cache for Redis.
+# This key should be rotated regularly for security.
+# Recommended expiration: 90 days
+# -----------------------------------------------------------------------------
+
+resource "azurerm_key_vault_secret" "redis_access_key" {
+  name         = "redis-access-key"
+  value        = azurerm_redis_cache.chatops.primary_access_key
+  key_vault_id = azurerm_key_vault.chatops.id
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    SecretType  = "AccessKey"
+    Service     = "Redis"
+    Owner       = var.owner
+    ManagedBy   = "Terraform"
+  }
+
+  depends_on = [
+    azurerm_key_vault.chatops,
+    azurerm_redis_cache.chatops
+  ]
+}

@@ -298,6 +298,56 @@ output "entra_client_secret_secret_id" {
 }
 
 # =============================================================================
+# Redis Cache Outputs
+# =============================================================================
+
+output "redis_cache_id" {
+  description = "The resource ID of the Azure Cache for Redis"
+  value       = azurerm_redis_cache.chatops.id
+}
+
+output "redis_cache_name" {
+  description = "The name of the Azure Cache for Redis"
+  value       = azurerm_redis_cache.chatops.name
+}
+
+output "redis_cache_hostname" {
+  description = "The hostname of the Azure Cache for Redis"
+  value       = azurerm_redis_cache.chatops.hostname
+}
+
+output "redis_cache_ssl_port" {
+  description = "The SSL port of the Azure Cache for Redis"
+  value       = azurerm_redis_cache.chatops.ssl_port
+}
+
+output "redis_cache_primary_access_key" {
+  description = "The primary access key for the Azure Cache for Redis"
+  value       = azurerm_redis_cache.chatops.primary_access_key
+  sensitive   = true
+}
+
+output "redis_subnet_id" {
+  description = "The resource ID of the Redis subnet"
+  value       = azurerm_subnet.redis_subnet.id
+}
+
+output "redis_host_secret_id" {
+  description = "The Key Vault secret ID for Redis host"
+  value       = azurerm_key_vault_secret.redis_host.id
+}
+
+output "redis_port_secret_id" {
+  description = "The Key Vault secret ID for Redis port"
+  value       = azurerm_key_vault_secret.redis_port.id
+}
+
+output "redis_access_key_secret_id" {
+  description = "The Key Vault secret ID for Redis access key"
+  value       = azurerm_key_vault_secret.redis_access_key.id
+}
+
+# =============================================================================
 # App Service Plan Outputs
 # =============================================================================
 

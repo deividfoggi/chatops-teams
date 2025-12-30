@@ -215,6 +215,12 @@ resource "azurerm_linux_web_app" "chatops" {
     "BOT_APP_ID"            = "@Microsoft.KeyVault(VaultName=${azurerm_key_vault.chatops.name};SecretName=bot-app-id)"
     "BOT_APP_PASSWORD"      = "@Microsoft.KeyVault(VaultName=${azurerm_key_vault.chatops.name};SecretName=bot-app-password)"
 
+    # Redis Cache Configuration
+    "REDIS_HOST"     = "@Microsoft.KeyVault(VaultName=${azurerm_key_vault.chatops.name};SecretName=redis-host)"
+    "REDIS_PORT"     = "@Microsoft.KeyVault(VaultName=${azurerm_key_vault.chatops.name};SecretName=redis-port)"
+    "REDIS_PASSWORD" = "@Microsoft.KeyVault(VaultName=${azurerm_key_vault.chatops.name};SecretName=redis-access-key)"
+    "REDIS_TLS"      = "true"
+
     # General settings
     # Note: WEBSITE_NODE_DEFAULT_VERSION is not supported in Flex Consumption
     # Node version is configured via application_stack block in site_config
