@@ -127,51 +127,41 @@ jobs:
             const testAllStatus = '${{ steps.test_all.outcome }}' === 'success' ? '✅ Passed' : '❌ Failed';
             const lintStatus = '${{ steps.lint.outcome }}' === 'success' ? '✅ Passed' : '⚠️ Issues';
             
-            // Coverage data
             const coverageLines = '${{ env.COVERAGE_LINES }}' || '0';
             const coverageFunctions = '${{ env.COVERAGE_FUNCTIONS }}' || '0';
             const coverageBranches = '${{ env.COVERAGE_BRANCHES }}' || '0';
             
             const coverageIcon = parseFloat(coverageLines) >= 80 ? '✅' : '⚠️';
-            const coverageStatus = `${coverageIcon} Lines: ${coverageLines}% | Functions: ${coverageFunctions}% | Branches: ${coverageBranches}%`;
+            const coverageStatus = `${coverageIcon} Lines: ${coverageLines}% \\| Functions: ${coverageFunctions}% \\| Branches: ${coverageBranches}%`;
             
-            let output = `## 🧪 Test Results & Coverage
-            
-### Test Execution
+            const output = `## 🧪 Test Results & Coverage
 
-#| Test Type | Status |
-#|-----------|--------|
-#| Linting | ${lintStatus} |
-#| Unit Tests | ${testUnitStatus} |
-#| Integration Tests | ${testIntegrationStatus} |
-#| Performance Tests | ${testPerformanceStatus} |
-#| All Tests | ${testAllStatus} |
+            ### Test Execution
 
-### Code Coverage
+            - **Linting**: ${lintStatus}
+            - **Unit Tests**: ${testUnitStatus}
+            - **Integration Tests**: ${testIntegrationStatus}
+            - **Performance Tests**: ${testPerformanceStatus}
+            - **All Tests**: ${testAllStatus}
 
-${coverageStatus}
+            ### Code Coverage
 
-**Target:** 80% coverage for lines, functions, and branches
+            ${coverageStatus}
 
-`;
+            **Target:** 80% coverage for lines, functions, and branches
 
-            // Add test failure details if any failed
-            if (testAllStatus.includes('Failed')) {
-              output += `\n⚠️ **Action Required**: Some tests failed. Please review the logs for details and stack traces.\n`;
-            }
-            
-            if (parseFloat(coverageLines) < 80) {
-              output += `\n📊 **Coverage Info**: Current coverage is below 80% threshold. This is informational and will be improved in future stories.\n`;
-            }
-            
-            output += `\n---\n*Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
+            ${testAllStatus.includes('Failed') ? '\n⚠️ **Action Required**: Some tests failed. Please review the logs for details and stack traces.\n' : ''}
+            ${parseFloat(coverageLines) < 80 ? '\n📊 **Coverage Info**: Current coverage is below 80% threshold. This is informational and will be improved in future stories.\n' : ''}
+
+            ---
+            *Pusher: @\${{ github.actor }}, Action: \\\`\${{ github.event_name }}\\\`, Workflow: \\\`\${{ github.workflow }}\\\`*`;
             
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: output
-            })
+            });
 
 
   codeql_analysis:
