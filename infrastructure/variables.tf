@@ -43,7 +43,7 @@ variable "security_alert_email" {
 # =============================================================================
 
 variable "admin_group_object_id" {
-  description = "The Object ID of the admin Entra ID group. When provided, grants the 'Key Vault Administrator' role for full Key Vault management capabilities."
+  description = "The Object ID of the admin Entra ID group. When provided, grants the 'Key Vault Administrator' role for full Key Vault management capabilities. REQUIRED for production environment."
   type        = string
   default     = null
 
@@ -54,7 +54,7 @@ variable "admin_group_object_id" {
 }
 
 variable "devops_sp_object_id" {
-  description = "The Object ID of the DevOps service principal. When provided, grants the 'Key Vault Secrets Officer' role for managing secrets in CI/CD pipelines."
+  description = "The Object ID of the DevOps service principal. When provided, grants the 'Key Vault Secrets Officer' role for managing secrets in CI/CD pipelines. REQUIRED for production environment."
   type        = string
   default     = null
 

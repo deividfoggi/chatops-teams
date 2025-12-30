@@ -166,26 +166,38 @@ Before using this Terraform configuration, ensure you have:
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd chatops-teams/terraform
+   cd chatops-teams/infrastructure
    ```
 
 2. **Configure the backend**
    
-   Update `main.tf` with your Azure Storage account details:
-   ```hcl
-   backend "azurerm" {
-     resource_group_name  = "terraform-state-rg"
-     storage_account_name = "your-unique-storage-account"
-     container_name       = "tfstate"
-     key                  = "chatops.tfstate"
-   }
+   The backend is configured in `main.tf`. Ensure your Azure Storage account exists:
+   ```bash
+   # Create storage account if needed
+   az group create --name rg-terraform-state-chatops --location eastus
+   az storage account create \
+     --name stterraformchatops19932 \
+     --resource-group rg-terraform-state-chatops \
+     --location eastus \
+     --sku Standard_LRS
+   az storage container create \
+     --name tfstate \
+     --account-name stterraformchatops19932 \
+     --auth-mode login
    ```
 
-3. **Create a terraform.tfvars file**
+3. **Configure environment variables**
+   
+   Update the appropriate environment file in `environments/`:
+   - `environments/dev.tfvars` for development
+   - `environments/staging.tfvars` for staging
+   - `environments/prod.tfvars` for production
+   
    ```hcl
-   environment = "Production"
+   environment = "prod"
    cost_center = "IT-12345"
    owner       = "chatops-team@example.com"
+   # ... other variables
    ```
 
 ### Common Commands
@@ -193,17 +205,22 @@ Before using this Terraform configuration, ensure you have:
 | Command | Description |
 |---------|-------------|
 | `terraform init` | Initialize working directory and download providers |
-| `terraform fmt` | Format configuration files |
+| `terraform fmt -recursive` | Format configuration files |
 | `terraform validate` | Validate configuration syntax |
-| `terraform plan -out=tfplan` | Preview changes and save plan |
+| `terraform plan -var-file="environments/dev.tfvars" -out=tfplan` | Preview changes for dev environment |
 | `terraform apply tfplan` | Apply the saved plan |
-| `terraform destroy` | Destroy all resources (use with caution) |
+| `terraform destroy -var-file="environments/dev.tfvars"` | Destroy all resources (use with caution) |
 
 ### Workflow
 
 ```bash
 # Initialize Terraform
-terraform init
+terraform init \
+  -backend-config="resource_group_name=rg-terraform-state-chatops" \
+  -backend-config="storage_account_name=stterraformchatops19932" \
+  -backend-config="container_name=tfstate" \
+  -backend-config="key=dev.tfstate" \
+  -backend-config="use_azuread_auth=true"
 
 # Format code
 terraform fmt -recursive
@@ -211,16 +228,35 @@ terraform fmt -recursive
 # Validate configuration
 terraform validate
 
-# Preview changes
-terraform plan -out=tfplan
+# Preview changes (Development)
+terraform plan -var-file="environments/dev.tfvars" -out=tfplan
+
+# Preview changes (Staging)
+terraform plan -var-file="environments/staging.tfvars" -out=tfplan
+
+# Preview changes (Production)
+terraform plan -var-file="environments/prod.tfvars" -out=tfplan
 
 # Apply changes
 terraform apply tfplan
 ```
 
+### Environment-Specific Deployments
+
+The infrastructure supports three environments with separate state files:
+
+| Environment | State File | Variable File | Auto-Deploy |
+|-------------|-----------|---------------|-------------|
+| Development | `dev.tfstate` | `environments/dev.tfvars` | On push to `develop` |
+| Staging | `staging.tfstate` | `environments/staging.tfvars` | On push to `main` |
+| Production | `prod.tfstate` | `environments/prod.tfvars` | On push to `main` (with approval) |
+
+See the [Infrastructure Deployment Guide](../docs/infrastructure-deployment-guide.md) for detailed instructions.
+
 ### State Management
 
 - State is stored remotely in Azure Storage Account
+- Each environment has its own state file (dev.tfstate, staging.tfstate, prod.tfstate)
 - State locking is enabled via Azure Blob leases
 - Never edit state files directly; use `terraform state` commands if needed
 

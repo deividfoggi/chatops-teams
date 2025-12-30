@@ -345,4 +345,53 @@ output "redis_port_secret_id" {
 output "redis_access_key_secret_id" {
   description = "The Key Vault secret ID for Redis access key"
   value       = azurerm_key_vault_secret.redis_access_key.id
+# App Service Plan Outputs
+# =============================================================================
+
+output "app_service_plan_id" {
+  description = "The resource ID of the App Service Plan"
+  value       = azurerm_service_plan.chatops.id
+}
+
+output "app_service_plan_name" {
+  description = "The name of the App Service Plan"
+  value       = azurerm_service_plan.chatops.name
+}
+
+# =============================================================================
+# App Service Outputs
+# =============================================================================
+
+output "app_service_id" {
+  description = "The resource ID of the App Service"
+  value       = azurerm_linux_web_app.chatops.id
+}
+
+output "app_service_name" {
+  description = "The name of the App Service"
+  value       = azurerm_linux_web_app.chatops.name
+}
+
+output "app_service_default_hostname" {
+  description = "The default hostname of the App Service"
+  value       = azurerm_linux_web_app.chatops.default_hostname
+}
+
+output "app_service_url" {
+  description = "The full URL of the App Service"
+  value       = "https://${azurerm_linux_web_app.chatops.default_hostname}"
+}
+
+output "app_service_identity_principal_id" {
+  description = "The principal ID of the App Service managed identity"
+  # Using try() to safely access identity block in case the identity configuration is changed
+  # or the App Service is recreated without identity during deployment
+  value = try(azurerm_linux_web_app.chatops.identity[0].principal_id, null)
+}
+
+output "app_service_identity_tenant_id" {
+  description = "The tenant ID of the App Service managed identity"
+  # Using try() to safely access identity block in case the identity configuration is changed
+  # or the App Service is recreated without identity during deployment
+  value = try(azurerm_linux_web_app.chatops.identity[0].tenant_id, null)
 }
