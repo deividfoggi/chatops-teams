@@ -71,82 +71,81 @@ if (avgValidationTime < 50) {
 /**
  * Test 2: Event Routing Performance
  */
-console.log('Test 2: Event Routing Performance');
+async function runRoutingTests() {
+  console.log('Test 2: Event Routing Performance');
 
-const testPayloads = [
-  {
-    type: 'code_scanning_alert',
-    payload: {
-      action: 'created',
-      alert: {
-        number: 42,
-        state: 'open',
-        rule: {
-          severity: 'high',
-          description: 'SQL injection',
+  const testPayloads = [
+    {
+      type: 'code_scanning_alert',
+      payload: {
+        action: 'created',
+        alert: {
+          number: 42,
+          state: 'open',
+          rule: {
+            severity: 'high',
+            description: 'SQL injection',
+          },
         },
+        repository: { full_name: 'test-org/test-repo' },
+        sender: { login: 'test-user' },
       },
-      repository: { full_name: 'test-org/test-repo' },
-      sender: { login: 'test-user' },
     },
-  },
-  {
-    type: 'dependabot_alert',
-    payload: {
-      action: 'created',
-      alert: {
-        number: 7,
-        state: 'open',
-        security_advisory: {
-          severity: 'critical',
-          summary: 'RCE vulnerability',
+    {
+      type: 'dependabot_alert',
+      payload: {
+        action: 'created',
+        alert: {
+          number: 7,
+          state: 'open',
+          security_advisory: {
+            severity: 'critical',
+            summary: 'RCE vulnerability',
+          },
+          security_vulnerability: {
+            package: { name: 'lodash' },
+          },
         },
-        security_vulnerability: {
-          package: { name: 'lodash' },
-        },
+        repository: { full_name: 'test-org/test-repo' },
+        sender: { login: 'dependabot[bot]' },
       },
-      repository: { full_name: 'test-org/test-repo' },
-      sender: { login: 'dependabot[bot]' },
     },
-  },
-  {
-    type: 'deployment_protection_rule',
-    payload: {
-      action: 'requested',
-      environment: 'production',
-      deployment: { id: 12345 },
-      repository: { full_name: 'test-org/test-repo' },
-      sender: { login: 'deploy-bot' },
+    {
+      type: 'deployment_protection_rule',
+      payload: {
+        action: 'requested',
+        environment: 'production',
+        deployment: { id: 12345 },
+        repository: { full_name: 'test-org/test-repo' },
+        sender: { login: 'deploy-bot' },
+      },
     },
-  },
-  {
-    type: 'ping',
-    payload: {
-      zen: 'Keep it simple.',
-      hook_id: 98765,
-      repository: { full_name: 'test-org/test-repo' },
+    {
+      type: 'ping',
+      payload: {
+        zen: 'Keep it simple.',
+        hook_id: 98765,
+        repository: { full_name: 'test-org/test-repo' },
+      },
     },
-  },
-];
+  ];
 
-const routingResults = [];
+  const routingResults = [];
 
-for (const testCase of testPayloads) {
-  const routingStart = Date.now();
-  
-  routeWebhookEvent(testCase.type, testCase.payload, mockTelemetryClient)
-    .then(() => {
+  // Use Promise.all to properly wait for all async operations
+  await Promise.all(
+    testPayloads.map(async (testCase) => {
+      const routingStart = Date.now();
+      await routeWebhookEvent(testCase.type, testCase.payload, mockTelemetryClient);
       const routingEnd = Date.now();
       const routingTime = routingEnd - routingStart;
       routingResults.push({
         type: testCase.type,
         time: routingTime,
       });
-    });
-}
+    })
+  );
 
-// Wait for all async operations to complete
-setTimeout(() => {
   console.log('\nEvent Routing Performance Results:');
   let totalTime = 0;
   let maxTime = 0;
@@ -169,10 +168,14 @@ setTimeout(() => {
   } else {
     console.log('⚠️  Routing performance could be optimized\n');
   }
-  
-  /**
-   * Test 3: End-to-End Webhook Processing Simulation
-   */
+
+  return avgRoutingTime;
+}
+
+/**
+ * Test 3: End-to-End Webhook Processing Simulation
+ */
+async function runEndToEndTest(avgRoutingTime) {
   console.log('Test 3: End-to-End Webhook Processing Simulation');
   
   const e2eStart = Date.now();
@@ -185,37 +188,42 @@ setTimeout(() => {
   const parsedPayload = JSON.parse(payload);
   
   // 3. Route event
-  routeWebhookEvent('code_scanning_alert', parsedPayload, mockTelemetryClient)
-    .then(() => {
-      const e2eEnd = Date.now();
-      const e2eTime = e2eEnd - e2eStart;
-      
-      console.log(`\n✅ End-to-end processing time: ${e2eTime}ms`);
-      
-      // Check against Epic 1 success metric: < 500ms
-      if (e2eTime < 500) {
-        console.log('✅ SUCCESS: Meets Epic 1 requirement (< 500ms latency)');
-      } else {
-        console.log('❌ FAIL: Exceeds Epic 1 requirement (< 500ms latency)');
-        console.log('   Performance optimization needed!');
-      }
-      
-      // Additional performance insights
-      console.log('\n📊 Performance Summary:');
-      console.log(`  Signature Validation: ~${avgValidationTime.toFixed(2)}ms`);
-      console.log(`  Event Routing: ~${avgRoutingTime.toFixed(2)}ms`);
-      console.log(`  Total Processing: ~${e2eTime}ms`);
-      console.log(`  Target: < 500ms`);
-      console.log(`  Margin: ${(500 - e2eTime).toFixed(0)}ms`);
-      
-      console.log('\n🎉 Performance tests completed!');
-      console.log('\nNote: These tests measure internal processing time only.');
-      console.log('Real-world latency includes:');
-      console.log('  - Network latency from GitHub to Azure');
-      console.log('  - Azure App Service request handling');
-      console.log('  - Express.js middleware overhead');
-      console.log('  - Database/cache operations (if any)');
-      console.log('\nRecommendation: Monitor actual webhook processing time in');
-      console.log('Application Insights using the WebhookProcessingTime metric.');
-    });
-}, 100);
+  await routeWebhookEvent('code_scanning_alert', parsedPayload, mockTelemetryClient);
+  
+  const e2eEnd = Date.now();
+  const e2eTime = e2eEnd - e2eStart;
+  
+  console.log(`\n✅ End-to-end processing time: ${e2eTime}ms`);
+  
+  // Check against Epic 1 success metric: < 500ms
+  if (e2eTime < 500) {
+    console.log('✅ SUCCESS: Meets Epic 1 requirement (< 500ms latency)');
+  } else {
+    console.log('❌ FAIL: Exceeds Epic 1 requirement (< 500ms latency)');
+    console.log('   Performance optimization needed!');
+  }
+  
+  // Additional performance insights
+  console.log('\n📊 Performance Summary:');
+  console.log(`  Signature Validation: ~${avgValidationTime.toFixed(2)}ms`);
+  console.log(`  Event Routing: ~${avgRoutingTime.toFixed(2)}ms`);
+  console.log(`  Total Processing: ~${e2eTime}ms`);
+  console.log(`  Target: < 500ms`);
+  console.log(`  Margin: ${(500 - e2eTime).toFixed(0)}ms`);
+  
+  console.log('\n🎉 Performance tests completed!');
+  console.log('\nNote: These tests measure internal processing time only.');
+  console.log('Real-world latency includes:');
+  console.log('  - Network latency from GitHub to Azure');
+  console.log('  - Azure App Service request handling');
+  console.log('  - Express.js middleware overhead');
+  console.log('  - Database/cache operations (if any)');
+  console.log('\nRecommendation: Monitor actual webhook processing time in');
+  console.log('Application Insights using the WebhookProcessingTime metric.');
+}
+
+// Run all tests sequentially
+(async () => {
+  const avgRoutingTime = await runRoutingTests();
+  await runEndToEndTest(avgRoutingTime);
+})();
