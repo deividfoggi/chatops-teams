@@ -80,18 +80,25 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           enable-AzPSSession: false
       
-      - name: Get App Service Details
+      - name: Get App Service and Application Gateway Details
         id: get-details
         run: |
           # Resource group follows naming convention: rg-chatops-{environment}
           RESOURCE_GROUP="rg-chatops-dev"
           
-          # Get App Service details
-          DETAILS=$(az webapp show --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group $RESOURCE_GROUP --query '{resourceGroup:resourceGroup,hostName:defaultHostName}' -o json)
-          HOST_NAME=$(echo $DETAILS | jq -r '.hostName')
+          # Get Application Gateway public IP for health checks
+          APPGW_PIP_ID=$(az network application-gateway show \
+            --name chatops-appgw \
+            --resource-group $RESOURCE_GROUP \
+            --query 'frontendIPConfigurations[0].publicIPAddress.id' -o tsv)
+          
+          APPGW_FQDN=$(az network public-ip show \
+            --ids $APPGW_PIP_ID \
+            --query 'dnsSettings.fqdn' -o tsv)
+          
           echo "resource_group=${RESOURCE_GROUP}" >> $GITHUB_OUTPUT
-          echo "app_url=https://${HOST_NAME}" >> $GITHUB_OUTPUT
-          echo "App Service URL: https://${HOST_NAME}"
+          echo "app_url=https://${APPGW_FQDN}" >> $GITHUB_OUTPUT
+          echo "Application Gateway URL: https://${APPGW_FQDN}"
           echo "Resource Group: ${RESOURCE_GROUP}"
       
       - name: Deploy to Azure App Service (Flex Consumption via Storage)
