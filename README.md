@@ -100,6 +100,7 @@ All secrets are stored in Azure Key Vault. See:
 
 ### Getting Started
 - [Pre-Sprint Prerequisites](docs/pre-sprint-prerequisites.md) - Critical actions and setup required before Sprint 1
+- [Pre-Sprint Quick Reference](docs/pre-sprint-quick-reference.md) - Quick reference guide for pre-sprint tasks
 - [Sprint 1 Foundation Planning](docs/sprint-1-foundation-planning.md) - Sprint 1 infrastructure deployment guide
 
 ### Application Setup
