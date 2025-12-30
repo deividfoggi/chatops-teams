@@ -1,0 +1,276 @@
+name: Application - CI (Pull Request Validation)
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'src/**'
+      - 'teams-app/**'
+      - '.github/workflows/app-ci.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+  security-events: write
+  checks: write
+
+env:
+  NODE_VERSION: '18'
+
+jobs:
+  build_and_test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: src/package.json
+      
+      - name: Install dependencies
+        run: npm install
+        working-directory: ./src
+      
+      - name: Run linter
+        id: lint
+        run: npm run lint
+        working-directory: ./src
+        continue-on-error: true
+      
+      - name: Run unit tests
+        id: test
+        run: npm run test:unit
+        working-directory: ./src
+      
+      - name: Post Lint Results
+        if: steps.lint.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '⚠️ **Linting Issues Detected**\n\nPlease run `npm run lint` in the `src/` directory and fix any linting issues.'
+            })
+      
+      - name: Post Test Results
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const testStatus = '${{ steps.test.outcome }}' === 'success' ? '✅' : '❌';
+            const lintStatus = '${{ steps.lint.outcome }}' === 'success' ? '✅' : '⚠️';
+            
+            const output = `### Application CI Results
+            
+            | Check | Status |
+            |-------|--------|
+            | Linting | ${lintStatus} |
+            | Unit Tests | ${testStatus} |
+            
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Workflow: \`${{ github.workflow }}\`*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
+
+  codeql_analysis:
+    name: CodeQL Security Analysis
+    runs-on: ubuntu-latest
+    needs: build_and_test
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: javascript
+          queries: security-and-quality
+      
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:javascript"
+      
+      - name: Post CodeQL Results
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🔒 **Security Issues Detected by CodeQL**\n\nCodeQL found potential security issues in the JavaScript code. Please check the Security tab for details.'
+            })
+
+  dependency_scan:
+    name: Dependency Vulnerability Scan
+    runs-on: ubuntu-latest
+    needs: build_and_test
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      
+      - name: Install dependencies
+        run: npm install
+        working-directory: ./src
+      
+      - name: Run npm audit
+        id: audit
+        run: |
+          npm audit --json > audit-results.json || true
+          npm audit
+        working-directory: ./src
+        continue-on-error: true
+      
+      - name: Upload Audit Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-results
+          path: src/audit-results.json
+          retention-days: 30
+      
+      - name: Post Audit Results
+        if: steps.audit.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '⚠️ **Dependency Vulnerabilities Detected**\n\nnpm audit found vulnerabilities in dependencies. Please review the audit results and update vulnerable packages.'
+            })
+
+  secret_scan:
+    name: Secret Scanning
+    runs-on: ubuntu-latest
+    needs: build_and_test
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Run Trivy Secret Scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'secret'
+          format: 'sarif'
+          output: 'trivy-secret-results.sarif'
+          exit-code: '0'
+      
+      - name: Upload Trivy Results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-secret-results.sarif'
+          category: 'trivy-secrets'
+      
+      - name: Run TruffleHog
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified --fail
+        continue-on-error: true
+      
+      - name: Post Secret Scan Results
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🔐 **Secrets Detected in Code**\n\nSecret scanning detected potential secrets or sensitive data in the code. Please review and remove any exposed credentials immediately.'
+            })
+
+  validation_summary:
+    name: CI Validation Summary
+    runs-on: ubuntu-latest
+    needs: [build_and_test, codeql_analysis, dependency_scan, secret_scan]
+    if: always()
+    
+    steps:
+      - name: Check Results
+        run: |
+          echo "Build and Test: ${{ needs.build_and_test.result }}"
+          echo "CodeQL Analysis: ${{ needs.codeql_analysis.result }}"
+          echo "Dependency Scan: ${{ needs.dependency_scan.result }}"
+          echo "Secret Scan: ${{ needs.secret_scan.result }}"
+          
+          if [ "${{ needs.build_and_test.result }}" != "success" ]; then
+            echo "❌ Build and test failed"
+            exit 1
+          fi
+          
+          if [ "${{ needs.codeql_analysis.result }}" != "success" ]; then
+            echo "⚠️ CodeQL analysis had issues"
+          fi
+          
+          if [ "${{ needs.dependency_scan.result }}" != "success" ]; then
+            echo "⚠️ Dependency scan had issues"
+          fi
+          
+          if [ "${{ needs.secret_scan.result }}" != "success" ]; then
+            echo "⚠️ Secret scan had issues"
+          fi
+          
+          echo "✅ Required validation checks passed"
+      
+      - name: Post Summary
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const buildStatus = '${{ needs.build_and_test.result }}' === 'success' ? '✅ Passed' : '❌ Failed';
+            const codeqlStatus = '${{ needs.codeql_analysis.result }}' === 'success' ? '✅ Passed' : '⚠️ Issues';
+            const depsStatus = '${{ needs.dependency_scan.result }}' === 'success' ? '✅ Passed' : '⚠️ Issues';
+            const secretsStatus = '${{ needs.secret_scan.result }}' === 'success' ? '✅ Passed' : '⚠️ Issues';
+            
+            const output = `## 🔍 CI Validation Summary
+            
+            | Check Category | Status |
+            |---------------|--------|
+            | Build & Tests | ${buildStatus} |
+            | CodeQL Security | ${codeqlStatus} |
+            | Dependencies | ${depsStatus} |
+            | Secrets | ${secretsStatus} |
+            
+            ${buildStatus.includes('Failed') ? '\n⚠️ **Action Required**: Build or tests failed. Please review the logs above.' : ''}
+            ${!codeqlStatus.includes('Passed') || !depsStatus.includes('Passed') || !secretsStatus.includes('Passed') ? '\n⚠️ **Security Review Needed**: Review security scan results in the Security tab.' : ''}
+            
+            ---
+            *Workflow: \`${{ github.workflow }}\` | Run: #${{ github.run_number }}*`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            })
