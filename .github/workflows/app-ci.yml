@@ -186,7 +186,7 @@ jobs:
           category: "/language:javascript"
       
       - name: Post CodeQL Results
-        if: failure()
+        if: failure() && github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
@@ -240,7 +240,7 @@ jobs:
           retention-days: 30
       
       - name: Post Audit Results
-        if: always()
+        if: always() && github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
@@ -294,7 +294,7 @@ jobs:
         continue-on-error: true
       
       - name: Post Secret Scan Results
-        if: failure()
+        if: failure() && github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
@@ -345,6 +345,7 @@ jobs:
           echo "✅ Required validation checks passed"
       
       - name: Post Summary
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
