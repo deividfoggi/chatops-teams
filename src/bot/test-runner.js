@@ -169,21 +169,11 @@ function main() {
 
   let allPassed = true;
   
-  // Run only specified category or all categories
-  if (!categoryFilter || categoryFilter === 'unit') {
-    if (!runCategory('unit', testCategories.unit)) {
-      allPassed = false;
-    }
-  }
-
-  if (!categoryFilter || categoryFilter === 'integration') {
-    if (!runCategory('integration', testCategories.integration)) {
-      allPassed = false;
-    }
-  }
-
-  if (!categoryFilter || categoryFilter === 'performance') {
-    if (!runCategory('performance', testCategories.performance)) {
+  // Run categories based on filter
+  const categoriesToRun = categoryFilter ? [categoryFilter] : validCategories;
+  
+  for (const category of categoriesToRun) {
+    if (!runCategory(category, testCategories[category])) {
       allPassed = false;
     }
   }

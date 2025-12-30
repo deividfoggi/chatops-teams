@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 
 // Allow override via environment variable for testing
+// Default assumes script is in src/bot/ and coverage is in src/coverage/
 const coverageDir = process.env.COVERAGE_DIR || path.join(__dirname, '../coverage');
 const coveragePath = path.join(coverageDir, 'coverage-summary.json');
 
