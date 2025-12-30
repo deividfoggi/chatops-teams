@@ -67,18 +67,14 @@ jobs:
         id: coverage
         run: |
           npm run test:coverage || true
-          # Store coverage percentage for reporting
+          # Extract coverage percentages using Node.js script
           if [ -f coverage/coverage-summary.json ]; then
-            COVERAGE_LINES=$(cat coverage/coverage-summary.json | grep -o '"lines":{"total":[0-9]*,"covered":[0-9]*,"skipped":[0-9]*,"pct":[0-9.]*' | grep -o 'pct":[0-9.]*' | cut -d: -f2)
-            COVERAGE_FUNCTIONS=$(cat coverage/coverage-summary.json | grep -o '"functions":{"total":[0-9]*,"covered":[0-9]*,"skipped":[0-9]*,"pct":[0-9.]*' | grep -o 'pct":[0-9.]*' | cut -d: -f2 | head -1)
-            COVERAGE_BRANCHES=$(cat coverage/coverage-summary.json | grep -o '"branches":{"total":[0-9]*,"covered":[0-9]*,"skipped":[0-9]*,"pct":[0-9.]*' | grep -o 'pct":[0-9.]*' | cut -d: -f2 | head -1)
-            echo "COVERAGE_LINES=${COVERAGE_LINES:-0}" >> $GITHUB_ENV
-            echo "COVERAGE_FUNCTIONS=${COVERAGE_FUNCTIONS:-0}" >> $GITHUB_ENV
-            echo "COVERAGE_BRANCHES=${COVERAGE_BRANCHES:-0}" >> $GITHUB_ENV
+            node bot/extract-coverage.js >> $GITHUB_ENV
           else
             echo "COVERAGE_LINES=0" >> $GITHUB_ENV
             echo "COVERAGE_FUNCTIONS=0" >> $GITHUB_ENV
             echo "COVERAGE_BRANCHES=0" >> $GITHUB_ENV
+            echo "COVERAGE_STATEMENTS=0" >> $GITHUB_ENV
           fi
         working-directory: ./src
         continue-on-error: true
