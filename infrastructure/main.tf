@@ -32,6 +32,16 @@ provider "azurerm" {
   storage_use_azuread = true
 }
 
+# Validate production environment requirements
+resource "terraform_data" "validate_production_rbac" {
+  lifecycle {
+    precondition {
+      condition     = var.environment != "prod" || (var.admin_group_object_id != null && var.devops_sp_object_id != null)
+      error_message = "Production environment requires both admin_group_object_id and devops_sp_object_id to be set for proper Key Vault RBAC configuration."
+    }
+  }
+}
+
 data "azurerm_client_config" "current" {}
 
 resource "azurerm_resource_group" "chatops" {

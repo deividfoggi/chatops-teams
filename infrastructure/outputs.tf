@@ -337,10 +337,10 @@ output "app_service_url" {
 
 output "app_service_identity_principal_id" {
   description = "The principal ID of the App Service managed identity"
-  value       = azurerm_linux_web_app.chatops.identity[0].principal_id
+  value       = try(azurerm_linux_web_app.chatops.identity[0].principal_id, null)
 }
 
 output "app_service_identity_tenant_id" {
   description = "The tenant ID of the App Service managed identity"
-  value       = azurerm_linux_web_app.chatops.identity[0].tenant_id
+  value       = try(azurerm_linux_web_app.chatops.identity[0].tenant_id, null)
 }

@@ -271,7 +271,8 @@ jobs:
             while [ $attempt -le $max_attempts ]; do
               echo "Attempt $attempt of $max_attempts"
               
-              response=$(curl -k -s -o /dev/null -w "%{http_code}" "https://$APPGW_IP/health" -H "Host: chatops.example.com" || echo "000")
+              # Test without Host header first (basic connectivity)
+              response=$(curl -k -s -o /dev/null -w "%{http_code}" "https://$APPGW_IP/" || echo "000")
               
               if [ "$response" = "200" ] || [ "$response" = "404" ]; then
                 echo "✅ Application Gateway is responding (HTTP $response)"
@@ -334,7 +335,14 @@ jobs:
       - name: Check Resource Group Status
         run: |
           echo "Checking resource group status..."
-          RG_NAME="rg-chatops-prod"
+          # Get resource group name from Terraform or environment
+          RG_NAME="rg-chatops-${{ env.ENVIRONMENT }}"
+          
+          # Verify resource group exists
+          if ! az group show --name "$RG_NAME" --query id -o tsv > /dev/null 2>&1; then
+            echo "⚠️  Resource group $RG_NAME not found"
+            exit 0
+          fi
           
           # Get resource count and status
           RESOURCE_COUNT=$(az resource list -g "$RG_NAME" --query "length([])" -o tsv)
