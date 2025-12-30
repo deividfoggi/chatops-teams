@@ -1,6 +1,6 @@
-# GitHub API Client
+# GitHub Integration Module
 
-A comprehensive GitHub API client library for the ChatOps Teams integration. Provides authenticated access to GitHub REST API v3 with rate limiting, caching, and exponential backoff.
+A comprehensive GitHub integration module for the ChatOps Teams application. Provides authenticated access to GitHub REST API v3 with rate limiting, caching, exponential backoff, and commit author identification.
 
 ## Features
 
@@ -14,10 +14,23 @@ A comprehensive GitHub API client library for the ChatOps Teams integration. Pro
 - ✅ **Repository Queries**: Get repository metadata and owners
 - ✅ **Commit Information**: Retrieve commit author details
 - ✅ **Security Champions**: Parse security champion metadata from CODEOWNERS
+- ✅ **Commit Author Identification**: Automatically identify authors from code scanning alerts
+
+## Components
+
+### GitHub API Client (`githubClient.js`)
+
+Core client for interacting with GitHub REST API v3. See usage examples below.
+
+### Commit Author Service (`commitAuthorService.js`)
+
+Identifies commit authors from GitHub code scanning alerts. Handles bot detection, merge commits, and error scenarios.
+
+**See:** [Commit Author Service Documentation](./COMMIT_AUTHOR_SERVICE.md)
 
 ## Installation
 
-The GitHub client is included in the main application. No additional installation is required.
+The GitHub integration module is included in the main application. No additional installation is required.
 
 ## Configuration
 
@@ -341,6 +354,11 @@ For GitHub Apps:
 1. Verify the private key format (should be PEM with newlines)
 2. Check that the App ID matches your GitHub App
 3. Ensure the installation ID is correct
+
+## Additional Documentation
+
+- **[Commit Author Service](./COMMIT_AUTHOR_SERVICE.md)** - Detailed documentation for commit author identification
+- **[Implementation Summary](./IMPLEMENTATION_SUMMARY.md)** - Overview of GitHub integration implementation
 
 ## Contributing
 
