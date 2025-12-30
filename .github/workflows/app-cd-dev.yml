@@ -83,9 +83,11 @@ jobs:
       - name: Get App Service Details
         id: get-details
         run: |
-          # Get resource group and URL in single query
-          DETAILS=$(az webapp show --name ${{ env.AZURE_WEBAPP_NAME }} --query '{resourceGroup:resourceGroup,hostName:defaultHostName}' -o json)
-          RESOURCE_GROUP=$(echo $DETAILS | jq -r '.resourceGroup')
+          # Resource group follows naming convention: rg-chatops-{environment}
+          RESOURCE_GROUP="rg-chatops-dev"
+          
+          # Get App Service details
+          DETAILS=$(az webapp show --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group $RESOURCE_GROUP --query '{resourceGroup:resourceGroup,hostName:defaultHostName}' -o json)
           HOST_NAME=$(echo $DETAILS | jq -r '.hostName')
           echo "resource_group=${RESOURCE_GROUP}" >> $GITHUB_OUTPUT
           echo "app_url=https://${HOST_NAME}" >> $GITHUB_OUTPUT
