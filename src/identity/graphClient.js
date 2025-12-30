@@ -272,6 +272,222 @@ class GraphClient {
   }
 
   /**
+   * Retrieves multiple users in a single batch request
+   * @param {Array<string>} userIds - Array of Entra ID user IDs (max 20)
+   * @returns {Promise<Array>} Array of user objects with presence data
+   */
+  async batchGetUsers(userIds) {
+    const startTime = Date.now();
+
+    if (!userIds || userIds.length === 0) {
+      return [];
+    }
+
+    // Microsoft Graph batch API supports max 20 requests per batch
+    if (userIds.length > 20) {
+      throw new Error('Batch request cannot exceed 20 users. Split into multiple batches.');
+    }
+
+    try {
+      // Build batch requests
+      const requests = userIds.map((userId, index) => ({
+        id: String(index + 1),
+        method: 'GET',
+        url: `/users/${userId}?$select=id,displayName,mail,userPrincipalName,userType,jobTitle,officeLocation`,
+      }));
+
+      const batchRequest = {
+        requests,
+      };
+
+      const token = await this.getAccessToken();
+      const response = await fetch(`${this.config.graphApiUrl}/$batch`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(batchRequest),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Batch request failed: ${response.status} ${error}`);
+      }
+
+      const data = await response.json();
+      
+      // Process responses and extract user data
+      const users = data.responses
+        .filter(r => r.status === 200)
+        .map(r => r.body);
+
+      // Track metric
+      if (this.telemetryClient) {
+        this.telemetryClient.trackMetric({
+          name: 'GraphClient.BatchGetUsers.Duration',
+          value: Date.now() - startTime,
+        });
+        this.telemetryClient.trackEvent({
+          name: 'GraphClient.BatchGetUsers',
+          properties: {
+            requestedCount: userIds.length,
+            successCount: users.length,
+          },
+        });
+      }
+
+      return users;
+    } catch (error) {
+      if (this.telemetryClient) {
+        this.telemetryClient.trackException({
+          exception: error,
+          properties: {
+            operation: 'GraphClient.BatchGetUsers',
+            userCount: userIds.length,
+          },
+        });
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Gets user presence information (availability, activity, status message)
+   * @param {string} userId - Entra ID user ID
+   * @returns {Promise<Object|null>} Presence object or null if not available
+   */
+  async getUserPresence(userId) {
+    const startTime = Date.now();
+
+    try {
+      const presence = await this.query(`/users/${userId}/presence`);
+
+      // Track metric
+      if (this.telemetryClient) {
+        this.telemetryClient.trackMetric({
+          name: 'GraphClient.GetUserPresence.Duration',
+          value: Date.now() - startTime,
+        });
+        this.telemetryClient.trackEvent({
+          name: 'GraphClient.GetUserPresence',
+          properties: {
+            userId,
+            availability: presence.availability,
+            activity: presence.activity,
+          },
+        });
+      }
+
+      return presence;
+    } catch (error) {
+      // Presence may not be available for all users (e.g., guests)
+      if (error.message.includes('404') || error.message.includes('403')) {
+        if (this.telemetryClient) {
+          this.telemetryClient.trackEvent({
+            name: 'GraphClient.GetUserPresence.NotAvailable',
+            properties: { userId },
+          });
+        }
+        return null;
+      }
+      
+      if (this.telemetryClient) {
+        this.telemetryClient.trackException({
+          exception: error,
+          properties: {
+            operation: 'GraphClient.GetUserPresence',
+            userId,
+          },
+        });
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Retrieves presence information for multiple users in a batch
+   * @param {Array<string>} userIds - Array of Entra ID user IDs (max 20)
+   * @returns {Promise<Array>} Array of presence objects
+   */
+  async batchGetPresence(userIds) {
+    const startTime = Date.now();
+
+    if (!userIds || userIds.length === 0) {
+      return [];
+    }
+
+    if (userIds.length > 20) {
+      throw new Error('Batch request cannot exceed 20 users. Split into multiple batches.');
+    }
+
+    try {
+      // Build batch requests for presence
+      const requests = userIds.map((userId, index) => ({
+        id: String(index + 1),
+        method: 'GET',
+        url: `/users/${userId}/presence`,
+      }));
+
+      const batchRequest = {
+        requests,
+      };
+
+      const token = await this.getAccessToken();
+      const response = await fetch(`${this.config.graphApiUrl}/$batch`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(batchRequest),
+      });
+
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Batch presence request failed: ${response.status} ${error}`);
+      }
+
+      const data = await response.json();
+      
+      // Process responses - some may fail if presence not available
+      const presences = data.responses.map((r, index) => ({
+        userId: userIds[index],
+        presence: r.status === 200 ? r.body : null,
+        available: r.status === 200,
+      }));
+
+      // Track metric
+      if (this.telemetryClient) {
+        this.telemetryClient.trackMetric({
+          name: 'GraphClient.BatchGetPresence.Duration',
+          value: Date.now() - startTime,
+        });
+        this.telemetryClient.trackEvent({
+          name: 'GraphClient.BatchGetPresence',
+          properties: {
+            requestedCount: userIds.length,
+            successCount: presences.filter(p => p.available).length,
+          },
+        });
+      }
+
+      return presences;
+    } catch (error) {
+      if (this.telemetryClient) {
+        this.telemetryClient.trackException({
+          exception: error,
+          properties: {
+            operation: 'GraphClient.BatchGetPresence',
+            userCount: userIds.length,
+          },
+        });
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Calculates Levenshtein distance-based similarity score
    * @param {string} str1 - First string
    * @param {string} str2 - Second string
