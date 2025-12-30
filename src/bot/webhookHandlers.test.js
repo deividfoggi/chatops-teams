@@ -28,8 +28,8 @@ const mockTelemetryClient = {
   },
 };
 
-// Test 1: Handle code scanning alert
-console.log('Test 1: Handle code scanning alert');
+// Test 1: Handle code scanning alert - high severity (should escalate)
+console.log('Test 1: Handle code scanning alert - high severity (should escalate)');
 try {
   const payload = {
     action: 'created',
@@ -37,6 +37,8 @@ try {
       number: 42,
       state: 'open',
       rule: {
+        id: 'sql-injection',
+        name: 'SQL Injection',
         severity: 'high',
         description: 'SQL injection vulnerability',
       },
@@ -50,12 +52,15 @@ try {
   };
 
   handleCodeScanningAlert(payload, mockTelemetryClient).then((result) => {
-    assert.strictEqual(result.status, 'processed');
+    assert.strictEqual(result.status, 'escalated'); // Changed: high severity should escalate
     assert.strictEqual(result.eventType, 'code_scanning_alert');
     assert.strictEqual(result.action, 'created');
     assert.strictEqual(result.alertNumber, 42);
     assert.strictEqual(result.severity, 'high');
     assert.strictEqual(result.repository, 'test-org/test-repo');
+    assert.strictEqual(result.shouldEscalate, true); // New field
+    assert.ok(result.metadata); // New field
+    assert.ok(result.metadata.description);
     
     console.log('✅ Code scanning alert handler test passed\n');
   }).catch((error) => {
@@ -188,7 +193,7 @@ try {
   };
 
   routeWebhookEvent('code_scanning_alert', payload, mockTelemetryClient).then((result) => {
-    assert.strictEqual(result.status, 'processed');
+    assert.strictEqual(result.status, 'logged'); // Changed: medium severity should be logged only
     assert.strictEqual(result.eventType, 'code_scanning_alert');
     
     console.log('✅ Route code scanning event test passed\n');
@@ -244,6 +249,96 @@ try {
   process.exit(1);
 }
 
+// Test 8: Handle code scanning alert - medium severity (should not escalate)
+console.log('Test 8: Handle code scanning alert - medium severity (should not escalate)');
+try {
+  const payload = {
+    action: 'created',
+    alert: {
+      number: 100,
+      state: 'open',
+      rule: {
+        id: 'code-smell',
+        name: 'Code Smell',
+        severity: 'medium',
+        description: 'Potential code quality issue',
+      },
+    },
+    repository: {
+      full_name: 'test-org/test-repo',
+    },
+    sender: {
+      login: 'test-user',
+    },
+  };
+
+  handleCodeScanningAlert(payload, mockTelemetryClient).then((result) => {
+    assert.strictEqual(result.status, 'logged');
+    assert.strictEqual(result.eventType, 'code_scanning_alert');
+    assert.strictEqual(result.severity, 'medium');
+    assert.strictEqual(result.shouldEscalate, false);
+    assert.ok(result.message.includes('logged only'));
+    
+    console.log('✅ Medium severity alert test passed\n');
+  }).catch((error) => {
+    console.error('❌ Medium severity alert test failed:', error.message);
+    process.exit(1);
+  });
+} catch (error) {
+  console.error('❌ Medium severity alert test failed:', error.message);
+  process.exit(1);
+}
+
+// Test 9: Handle code scanning alert - critical severity (should escalate)
+console.log('Test 9: Handle code scanning alert - critical severity (should escalate)');
+try {
+  const payload = {
+    action: 'created',
+    alert: {
+      number: 200,
+      state: 'open',
+      rule: {
+        id: 'remote-code-execution',
+        name: 'Remote Code Execution',
+        severity: 'critical',
+        description: 'Critical RCE vulnerability',
+        tags: ['external/cwe/cwe-78', 'security'],
+        security_severity_level: '9.8',
+      },
+      most_recent_instance: {
+        location: {
+          path: 'src/vulnerable.js',
+          start_line: 42,
+        },
+      },
+    },
+    repository: {
+      full_name: 'test-org/test-repo',
+    },
+    sender: {
+      login: 'test-user',
+    },
+  };
+
+  handleCodeScanningAlert(payload, mockTelemetryClient).then((result) => {
+    assert.strictEqual(result.status, 'escalated');
+    assert.strictEqual(result.severity, 'critical');
+    assert.strictEqual(result.shouldEscalate, true);
+    assert.ok(result.metadata.cweIds);
+    assert.ok(result.metadata.cweIds.includes('CWE-78'));
+    assert.strictEqual(result.metadata.cvssScore, 9.8);
+    assert.ok(result.metadata.affectedFiles.length > 0);
+    
+    console.log('✅ Critical severity alert test passed\n');
+  }).catch((error) => {
+    console.error('❌ Critical severity alert test failed:', error.message);
+    process.exit(1);
+  });
+} catch (error) {
+  console.error('❌ Critical severity alert test failed:', error.message);
+  process.exit(1);
+}
+
 // Wait for all async tests to complete
 setTimeout(() => {
   console.log('🎉 All webhook handler tests passed!');
@@ -252,4 +347,8 @@ setTimeout(() => {
   console.log('- Logic App workflow integration');
   console.log('- Error handling and retry logic');
   console.log('- End-to-end webhook processing');
+  console.log('\nNew Story 2.1 Features Tested:');
+  console.log('- Severity-based filtering: ✅');
+  console.log('- Metadata extraction (CWE, CVE, CVSS): ✅');
+  console.log('- Escalation decision logic: ✅');
 }, 100);
