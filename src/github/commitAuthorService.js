@@ -78,7 +78,10 @@ async function identifyCommitAuthor(alert, repository, githubClient, telemetryCl
     // Fetch commit information from GitHub API
     const commit = await githubClient.getCommit(owner, repo, commitSha);
     
-    // Prefer author over committer (author is who wrote the code)
+    // Prefer author over committer for responsibility
+    // - author: the person who wrote the code
+    // - committer: the person who committed it (may be different for merge commits)
+    // We use author as fallback to committer if author is null
     const primaryUser = commit.author || commit.committer;
     const gitAuthor = commit.commit.author;
     
@@ -96,6 +99,7 @@ async function identifyCommitAuthor(alert, repository, githubClient, telemetryCl
     
     if (botDetected && commit.parents.length === 1) {
       // Single-parent bot commit - try to find the human who triggered it
+      // Note: Bot commits with multiple parents are handled as merge commits below
       console.log(`Bot commit detected: ${primaryUser?.login}`);
       
       // For now, mark as bot commit and suggest using PR author as fallback
