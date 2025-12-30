@@ -152,7 +152,7 @@ jobs:
           # Display audit output for visibility
           npm audit || true
           # Check for high and critical vulnerabilities
-          HIGH_CRITICAL=$(jq '.metadata.vulnerabilities.high + .metadata.vulnerabilities.critical' audit-results.json)
+          HIGH_CRITICAL=$(jq '(.metadata.vulnerabilities.high // 0) + (.metadata.vulnerabilities.critical // 0)' audit-results.json)
           echo "High + Critical vulnerabilities found: $HIGH_CRITICAL"
           if [ "$HIGH_CRITICAL" -gt 0 ]; then
             echo "❌ Build failed due to high or critical vulnerabilities"

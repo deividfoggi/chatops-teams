@@ -37,9 +37,7 @@ module.exports = [
       'no-console': 'off',
       
       // Security plugin rules
-      ...security.configs.recommended.rules,
-      'security/detect-object-injection': 'warn',
-      'security/detect-non-literal-require': 'warn'
+      ...security.configs.recommended.rules
     }
   }
 ];
