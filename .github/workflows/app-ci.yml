@@ -107,7 +107,7 @@ jobs:
         uses: github/codeql-action/init@v3
         with:
           languages: javascript
-          queries: security-and-quality
+          queries: security-extended
       
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
@@ -147,10 +147,18 @@ jobs:
       - name: Run npm audit
         id: audit
         run: |
+          # Run audit and save results to JSON
           npm audit --json > audit-results.json || true
-          npm audit
+          # Display audit output for visibility
+          npm audit || true
+          # Check for high and critical vulnerabilities
+          HIGH_CRITICAL=$(jq '.metadata.vulnerabilities.high + .metadata.vulnerabilities.critical' audit-results.json)
+          echo "High + Critical vulnerabilities found: $HIGH_CRITICAL"
+          if [ "$HIGH_CRITICAL" -gt 0 ]; then
+            echo "❌ Build failed due to high or critical vulnerabilities"
+            exit 1
+          fi
         working-directory: ./src
-        continue-on-error: true
       
       - name: Upload Audit Results
         if: always()
@@ -161,15 +169,20 @@ jobs:
           retention-days: 30
       
       - name: Post Audit Results
-        if: steps.audit.outcome == 'failure'
+        if: always()
         uses: actions/github-script@v7
         with:
           script: |
+            const auditOutcome = '${{ steps.audit.outcome }}';
+            const message = auditOutcome === 'failure' 
+              ? '⚠️ **High/Critical Dependency Vulnerabilities Detected**\n\nnpm audit found high or critical vulnerabilities in dependencies. This is a **blocking issue**. Please review the audit results and update vulnerable packages.\n\n**Action Required:** Run `npm audit fix` or manually update vulnerable dependencies.'
+              : '✅ **No High/Critical Vulnerabilities**\n\nDependency scan passed. No high or critical vulnerabilities found.';
+            
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: '⚠️ **Dependency Vulnerabilities Detected**\n\nnpm audit found vulnerabilities in dependencies. Please review the audit results and update vulnerable packages.'
+              body: message
             })
 
   secret_scan:
@@ -247,11 +260,13 @@ jobs:
             exit 1
           fi
           
-          # Dependency and secret scans can have warnings but shouldn't fail hard
-          if [ "${{ needs.dependency_scan.result }}" != "success" ]; then
-            echo "⚠️ Dependency scan had issues (non-blocking)"
+          # Dependency scan with high/critical vulnerabilities must fail
+          if [ "${{ needs.dependency_scan.result }}" == "failure" ]; then
+            echo "❌ High or critical dependency vulnerabilities found"
+            exit 1
           fi
           
+          # Secret scans can have warnings but shouldn't fail hard
           if [ "${{ needs.secret_scan.result }}" != "success" ]; then
             echo "⚠️ Secret scan had issues (non-blocking)"
           fi
