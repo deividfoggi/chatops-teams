@@ -72,6 +72,25 @@ output "app_subnet_address_prefixes" {
 }
 
 # =============================================================================
+# GitHub Runners Subnet Outputs
+# =============================================================================
+
+output "github_runners_subnet_id" {
+  description = "The resource ID of the GitHub runners subnet"
+  value       = azurerm_subnet.github_runners_subnet.id
+}
+
+output "github_runners_subnet_name" {
+  description = "The name of the GitHub runners subnet"
+  value       = azurerm_subnet.github_runners_subnet.name
+}
+
+output "github_runners_subnet_address_prefixes" {
+  description = "The address prefixes of the GitHub runners subnet"
+  value       = azurerm_subnet.github_runners_subnet.address_prefixes
+}
+
+# =============================================================================
 # Network Security Group Outputs
 # =============================================================================
 
@@ -93,6 +112,16 @@ output "app_nsg_id" {
 output "app_nsg_name" {
   description = "The name of the app network security group"
   value       = azurerm_network_security_group.app_nsg.name
+}
+
+output "github_runners_nsg_id" {
+  description = "The resource ID of the GitHub runners network security group"
+  value       = azurerm_network_security_group.github_runners_nsg.id
+}
+
+output "github_runners_nsg_name" {
+  description = "The name of the GitHub runners network security group"
+  value       = azurerm_network_security_group.github_runners_nsg.name
 }
 
 # =============================================================================

@@ -77,21 +77,22 @@ For the complete IP allocation strategy including subnet design, future planning
 | gateway-subnet | 10.0.2.0/24 | 251 | API Gateway and ingress controllers |
 | database-subnet | 10.0.3.0/24 | 251 | Database services (Azure SQL, CosmosDB) - Reserved for Sprint 2 |
 | chatops-redis-subnet | 10.0.4.0/24 | 251 | Azure Cache for Redis with VNet injection |
+| snet-github-runners-{env} | 10.0.5.0/27 | 27 | GitHub Actions self-hosted runners (Azure Container Instances) |
 
-> **Note:** Azure reserves 5 IP addresses in each subnet (first 4 and last 1), reducing the usable count from 256 to 251 per /24 subnet.
+> **Note:** Azure reserves 5 IP addresses in each subnet (first 4 and last 1), reducing the usable count from 256 to 251 per /24 subnet and from 32 to 27 per /27 subnet.
 
 ### Future Expansion
 
 | CIDR Range | Available IPs | Status |
 |------------|---------------|--------|
-| 10.0.4.0 - 10.0.255.0 | ~64,000 | Reserved for future use |
+| 10.0.5.32 - 10.0.255.255 | ~64,000 | Reserved for future use |
 
-The remaining address space (10.0.4.0/22 through 10.0.252.0/22) is available for:
+The remaining address space (10.0.5.32/27 through 10.0.255.255/24) is available for:
 - Additional application tiers
 - Development/staging environments
 - Peered virtual networks
 - Azure Kubernetes Service (AKS) node pools
-- Azure Container Instances
+- Additional Azure Container Instances
 
 ## Azure Well-Architected Framework Alignment
 
@@ -269,6 +270,8 @@ See the [Infrastructure Deployment Guide](../docs/infrastructure-deployment-guid
 | `azurerm_subnet` | app_subnet | App Service VNet integration |
 | `azurerm_subnet` | gateway_subnet | Application Gateway subnet |
 | `azurerm_subnet` | redis_subnet | Azure Cache for Redis VNet injection |
+| `azurerm_subnet` | github_runners_subnet | GitHub Actions runners (Azure Container Instances) |
+| `azurerm_network_security_group` | github_runners_nsg | NSG for GitHub runners subnet |
 | `azurerm_log_analytics_workspace` | chatops | Monitoring and logging |
 | `azurerm_application_insights` | chatops | Application performance monitoring |
 | `azurerm_key_vault` | chatops | Secrets management |

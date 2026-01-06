@@ -408,3 +408,154 @@ resource "azurerm_network_watcher" "chatops" {
 #     azurerm_role_assignment.flow_logs_storage
 #   ]
 # }
+
+# =============================================================================
+# GitHub Runners Subnet Configuration
+# =============================================================================
+# This subnet hosts GitHub Actions self-hosted runners using Azure Container
+# Instances. It provides isolated network resources with proper security
+# boundaries for CI/CD workloads.
+# =============================================================================
+
+resource "azurerm_subnet" "github_runners_subnet" {
+  name                 = "snet-github-runners-${var.environment}"
+  resource_group_name  = azurerm_resource_group.chatops.name
+  virtual_network_name = azurerm_virtual_network.chatops_vnet.name
+  address_prefixes     = ["10.0.5.0/27"]
+
+  service_endpoints = [
+    "Microsoft.KeyVault",
+    "Microsoft.Storage",
+    "Microsoft.Sql"
+  ]
+
+  delegation {
+    name = "aci-delegation"
+
+    service_delegation {
+      name = "Microsoft.ContainerInstance/containerGroups"
+      actions = [
+        "Microsoft.Network/virtualNetworks/subnets/action"
+      ]
+    }
+  }
+}
+
+# =============================================================================
+# Network Security Group for GitHub Runners Subnet
+# =============================================================================
+# This NSG controls traffic to and from the GitHub runners subnet, allowing
+# outbound connectivity to GitHub and Azure services while denying all inbound
+# traffic for security.
+# =============================================================================
+
+resource "azurerm_network_security_group" "github_runners_nsg" {
+  name                = "github-runners-nsg-${var.environment}"
+  location            = azurerm_resource_group.chatops.location
+  resource_group_name = azurerm_resource_group.chatops.name
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    Purpose     = "GitHub Runners"
+    ManagedBy   = "Terraform"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# NSG Rule: Allow Outbound HTTPS to GitHub
+# -----------------------------------------------------------------------------
+# Allows GitHub Actions runners to communicate with GitHub services including
+# api.github.com, github.com, and *.actions.githubusercontent.com.
+# -----------------------------------------------------------------------------
+
+resource "azurerm_network_security_rule" "github_runners_allow_github_https" {
+  name                        = "AllowGitHubHTTPS"
+  priority                    = 100
+  direction                   = "Outbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "443"
+  source_address_prefix       = "*"
+  destination_address_prefix  = "Internet"
+  resource_group_name         = azurerm_resource_group.chatops.name
+  network_security_group_name = azurerm_network_security_group.github_runners_nsg.name
+  description                 = "Allow HTTPS to GitHub (api.github.com, github.com, *.actions.githubusercontent.com)"
+}
+
+# -----------------------------------------------------------------------------
+# NSG Rule: Allow Outbound HTTPS to Azure Services
+# -----------------------------------------------------------------------------
+# Allows GitHub Actions runners to access Azure services including Key Vault,
+# Storage, and Container Registry.
+# -----------------------------------------------------------------------------
+
+resource "azurerm_network_security_rule" "github_runners_allow_azure_https" {
+  name                        = "AllowAzureServicesHTTPS"
+  priority                    = 110
+  direction                   = "Outbound"
+  access                      = "Allow"
+  protocol                    = "Tcp"
+  source_port_range           = "*"
+  destination_port_range      = "443"
+  source_address_prefix       = "*"
+  destination_address_prefix  = "AzureCloud"
+  resource_group_name         = azurerm_resource_group.chatops.name
+  network_security_group_name = azurerm_network_security_group.github_runners_nsg.name
+  description                 = "Allow HTTPS to Azure services (Key Vault, Storage, Container Registry)"
+}
+
+# -----------------------------------------------------------------------------
+# NSG Rule: Allow Outbound DNS
+# -----------------------------------------------------------------------------
+# Allows DNS queries to Azure DNS for name resolution.
+# -----------------------------------------------------------------------------
+
+resource "azurerm_network_security_rule" "github_runners_allow_dns" {
+  name                        = "AllowDNS"
+  priority                    = 120
+  direction                   = "Outbound"
+  access                      = "Allow"
+  protocol                    = "Udp"
+  source_port_range           = "*"
+  destination_port_range      = "53"
+  source_address_prefix       = "*"
+  destination_address_prefix  = "VirtualNetwork"
+  resource_group_name         = azurerm_resource_group.chatops.name
+  network_security_group_name = azurerm_network_security_group.github_runners_nsg.name
+  description                 = "Allow DNS queries to Azure DNS"
+}
+
+# -----------------------------------------------------------------------------
+# NSG Rule: Deny All Inbound
+# -----------------------------------------------------------------------------
+# Denies all inbound traffic to the GitHub runners subnet. Runners only
+# initiate outbound connections to GitHub and Azure services.
+# -----------------------------------------------------------------------------
+
+resource "azurerm_network_security_rule" "github_runners_deny_all_inbound" {
+  name                        = "DenyAllInbound"
+  priority                    = 4000
+  direction                   = "Inbound"
+  access                      = "Deny"
+  protocol                    = "*"
+  source_port_range           = "*"
+  destination_port_range      = "*"
+  source_address_prefix       = "*"
+  destination_address_prefix  = "*"
+  resource_group_name         = azurerm_resource_group.chatops.name
+  network_security_group_name = azurerm_network_security_group.github_runners_nsg.name
+  description                 = "Deny all inbound traffic"
+}
+
+# -----------------------------------------------------------------------------
+# GitHub Runners Subnet - NSG Association
+# -----------------------------------------------------------------------------
+# Associates the GitHub runners NSG with the GitHub runners subnet.
+# -----------------------------------------------------------------------------
+
+resource "azurerm_subnet_network_security_group_association" "github_runners_nsg_assoc" {
+  subnet_id                 = azurerm_subnet.github_runners_subnet.id
+  network_security_group_id = azurerm_network_security_group.github_runners_nsg.id
+}
