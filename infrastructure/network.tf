@@ -536,7 +536,7 @@ resource "azurerm_network_security_rule" "github_runners_allow_dns" {
 
 resource "azurerm_network_security_rule" "github_runners_deny_all_inbound" {
   name                        = "DenyAllInbound"
-  priority                    = 4096
+  priority                    = 4000
   direction                   = "Inbound"
   access                      = "Deny"
   protocol                    = "*"
