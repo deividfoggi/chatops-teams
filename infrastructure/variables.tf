@@ -69,3 +69,57 @@ variable "ops_team_email" {
   type        = string
   default     = "ops-team@company.com"
 }
+
+# =============================================================================
+# GitHub Actions Runner Variables
+# =============================================================================
+
+variable "github_repository" {
+  description = "GitHub repository for runners (format: owner/repo)"
+  type        = string
+  default     = "your-org/chatops-teams"
+
+  validation {
+    condition     = can(regex("^[a-zA-Z0-9-]+/[a-zA-Z0-9-_.]+$", var.github_repository))
+    error_message = "GitHub repository must be in format: owner/repo"
+  }
+}
+
+variable "github_runner_cpu" {
+  description = "CPU cores allocated to each GitHub runner container"
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.github_runner_cpu >= 1 && var.github_runner_cpu <= 4
+    error_message = "GitHub runner CPU must be between 1 and 4 cores"
+  }
+}
+
+variable "github_runner_memory" {
+  description = "Memory in GB allocated to each GitHub runner container"
+  type        = number
+  default     = 4
+
+  validation {
+    condition     = var.github_runner_memory >= 2 && var.github_runner_memory <= 16
+    error_message = "GitHub runner memory must be between 2 and 16 GB"
+  }
+}
+
+variable "github_runner_count" {
+  description = "Number of GitHub runner instances to deploy"
+  type        = number
+  default     = 1
+
+  validation {
+    condition     = var.github_runner_count >= 0 && var.github_runner_count <= 10
+    error_message = "GitHub runner count must be between 0 and 10"
+  }
+}
+
+variable "github_runner_group" {
+  description = "GitHub runner group name for organization-level runner grouping"
+  type        = string
+  default     = "Default"
+}

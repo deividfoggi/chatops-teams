@@ -427,3 +427,42 @@ output "app_service_identity_tenant_id" {
   # or the App Service is recreated without identity during deployment
   value = try(azurerm_linux_web_app.chatops.identity[0].tenant_id, null)
 }
+
+# =============================================================================
+# GitHub Actions Runner Outputs
+# =============================================================================
+
+output "github_runner_identity_principal_id" {
+  description = "The principal ID of the GitHub runner managed identity"
+  value       = azurerm_user_assigned_identity.github_runner.principal_id
+}
+
+output "github_runner_identity_client_id" {
+  description = "The client ID of the GitHub runner managed identity"
+  value       = azurerm_user_assigned_identity.github_runner.client_id
+}
+
+output "github_runner_identity_id" {
+  description = "The resource ID of the GitHub runner managed identity"
+  value       = azurerm_user_assigned_identity.github_runner.id
+}
+
+output "github_runner_container_group_ids" {
+  description = "The resource IDs of the GitHub runner container groups"
+  value       = [for cg in azurerm_container_group.github_runner : cg.id]
+}
+
+output "github_runner_container_group_names" {
+  description = "The names of the GitHub runner container groups"
+  value       = [for cg in azurerm_container_group.github_runner : cg.name]
+}
+
+output "github_runner_pat_secret_id" {
+  description = "The Key Vault secret ID for GitHub runner PAT"
+  value       = azurerm_key_vault_secret.github_runner_pat.id
+}
+
+output "github_repository_url_secret_id" {
+  description = "The Key Vault secret ID for GitHub repository URL"
+  value       = azurerm_key_vault_secret.github_repository_url.id
+}
