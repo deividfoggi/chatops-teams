@@ -26,22 +26,25 @@ The `/16` CIDR block was chosen for the following reasons:
 
 ## Subnet Allocation
 
-### Current Subnets (Sprint 1)
+### Current Subnets (Sprint 1-2)
 
 | Subnet Name | CIDR Block | Total IPs | Usable IPs | Purpose | Status |
 |-------------|------------|-----------|------------|---------|--------|
 | app-subnet | 10.0.1.0/24 | 256 | 251 | App Service VNet integration, Container Apps | ✅ Deployed |
 | gateway-subnet | 10.0.2.0/24 | 256 | 251 | Application Gateway, API Gateway | ✅ Deployed |
+| chatops-redis-subnet | 10.0.4.0/24 | 256 | 251 | Azure Cache for Redis with VNet injection | ✅ Deployed |
+| snet-github-runners-{env} | 10.0.5.0/27 | 32 | 27 | GitHub Actions self-hosted runners (Azure Container Instances) | ✅ Deployed |
 
-**Note:** Azure reserves 5 IP addresses in each subnet (first 4 and last 1), reducing usable addresses from 256 to 251 per `/24` subnet.
+**Note:** Azure reserves 5 IP addresses in each subnet (first 4 and last 1), reducing usable addresses from 256 to 251 per `/24` subnet and from 32 to 27 per `/27` subnet.
 
 ### Reserved for Future Use
 
 | CIDR Range | Total IPs | Reserved For | Planned Sprint |
 |------------|-----------|--------------|----------------|
 | 10.0.3.0/24 | 256 | Database subnet (Azure SQL, CosmosDB) | Sprint 2 |
-| 10.0.4.0/24 | 256 | Private endpoints subnet | Sprint 3 |
-| 10.0.5.0/24 | 256 | Management subnet (Bastion, monitoring tools) | Future |
+| 10.0.5.32/27 | 32 | Additional runner capacity or reserved | Future |
+| 10.0.5.64 - 10.0.5.255 | 192 | Available within 10.0.5.0/24 block | Future |
+| 10.0.6.0/24 | 256 | Management subnet (Bastion, monitoring tools) | Future |
 | 10.0.10.0/24 | 256 | Dev environment - app tier | Future |
 | 10.0.11.0/24 | 256 | Dev environment - gateway tier | Future |
 | 10.0.12.0/24 | 256 | Dev environment - database tier | Future |
@@ -109,7 +112,69 @@ The `/16` CIDR block was chosen for the following reasons:
 
 ---
 
-### 3. Database Subnet (10.0.3.0/24) - Future
+### 3. GitHub Runners Subnet (10.0.5.0/27)
+
+**Purpose:** Hosts GitHub Actions self-hosted runners using Azure Container Instances
+
+**Resources:**
+- Azure Container Instances running GitHub Actions runners
+- Ephemeral runner instances spawned on-demand
+- Self-hosted runners for CI/CD pipelines
+
+**IP Allocation:**
+- Total addresses: 32
+- Usable addresses: 27 (Azure reserves 5)
+- Estimated usage: 5-15 IPs (depends on concurrent workflows)
+
+**Subnet Delegation:**
+- `Microsoft.ContainerInstance/containerGroups` - Allows Azure Container Instances to deploy resources
+
+**Service Endpoints:**
+- `Microsoft.KeyVault` - Direct connection to Key Vault for secrets
+- `Microsoft.Storage` - Access to storage accounts for artifacts
+- `Microsoft.Sql` - Database connectivity if needed for testing
+
+**Network Security Group:** `github-runners-nsg-{environment}`
+
+**Outbound Rules:**
+- Allow HTTPS (443) to GitHub (`api.github.com`, `github.com`, `*.actions.githubusercontent.com`)
+- Allow HTTPS (443) to Azure services (Key Vault, Storage, Container Registry)
+- Allow DNS (53) to Azure DNS for name resolution
+
+**Inbound Rules:**
+- Deny all inbound traffic (runners only initiate outbound connections)
+
+**Security Rationale:**
+- Isolated network segment for CI/CD workloads
+- No inbound access reduces attack surface
+- Service endpoints provide secure, private connectivity to Azure services
+- Minimal address space (/27) appropriate for ephemeral container workloads
+
+---
+
+### 4. Redis Subnet (10.0.4.0/24)
+
+**Purpose:** Azure Cache for Redis with VNet injection
+
+**Resources:**
+- Azure Cache for Redis Premium P1
+- Dedicated subnet for Redis cluster nodes
+
+**IP Allocation:**
+- Redis cluster nodes: Dynamic allocation
+- Estimated usage: 3-10 IPs (depends on cluster configuration)
+
+**Service Endpoints:**
+- `Microsoft.Storage` - For Redis data persistence (RDB backups)
+
+**Security:**
+- Private connectivity only
+- Access from app subnet via NSG rules
+- No public endpoint
+
+---
+
+### 5. Database Subnet (10.0.3.0/24) - Reserved
 
 **Purpose:** Hosts database resources with private endpoints
 
@@ -129,7 +194,7 @@ The `/16` CIDR block was chosen for the following reasons:
 
 ---
 
-### 4. Private Endpoints Subnet (10.0.4.0/24) - Future
+### 6. Private Endpoints Subnet (Reserved for Future) - Future
 
 **Purpose:** Centralized subnet for all private endpoints
 
