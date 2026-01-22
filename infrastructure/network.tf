@@ -352,6 +352,11 @@ resource "azurerm_role_assignment" "terraform_storage_access" {
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = data.azurerm_client_config.current.object_id
   description          = "Allows Terraform to manage storage account with Azure AD authentication"
+
+  # Prevent recreation if already exists
+  lifecycle {
+    ignore_changes = [principal_id]
+  }
 }
 
 # -----------------------------------------------------------------------------

@@ -163,7 +163,7 @@ resource "azurerm_subnet" "keyvault_subnet" {
   name                 = "chatops-keyvault-subnet"
   resource_group_name  = azurerm_resource_group.chatops.name
   virtual_network_name = azurerm_virtual_network.chatops_vnet.name
-  address_prefixes     = ["10.0.5.0/24"]
+  address_prefixes     = ["10.0.6.0/24"]
 }
 
 # -----------------------------------------------------------------------------
