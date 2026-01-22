@@ -12,7 +12,7 @@ variable "environment" {
 variable "location" {
   description = "Azure region for all resources"
   type        = string
-  default     = "eastus"
+  default     = "eastus2"
 
   validation {
     condition     = can(regex("^[a-z0-9]+$", var.location))
