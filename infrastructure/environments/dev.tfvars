@@ -7,7 +7,7 @@
 
 # Environment Configuration
 environment = "dev"
-location    = "eastus"
+location    = "eastus2"
 
 # Organizational Tags
 cost_center = "IT-Operations-Dev"
