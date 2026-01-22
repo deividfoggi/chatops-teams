@@ -306,3 +306,79 @@ resource "azurerm_key_vault_secret" "redis_access_key" {
     azurerm_redis_cache.chatops
   ]
 }
+
+# =============================================================================
+# GitHub Actions Runner Secrets
+# =============================================================================
+# Secrets required for GitHub Actions self-hosted runners to register with
+# GitHub and execute workflows.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# GitHub Personal Access Token (PAT)
+# -----------------------------------------------------------------------------
+# Personal Access Token with 'repo' and 'admin:org' permissions for runner
+# registration. Required for runners to register with GitHub Actions.
+#
+# Production Update: Generate a GitHub PAT with the following permissions:
+#   - repo (Full control of private repositories)
+#   - admin:org (if using organization-level runners)
+#   - workflow (if runners need to trigger workflows)
+#
+# Token must be created by an account with admin access to the repository.
+# Recommended expiration: 90 days (GitHub enforces expiration on PATs)
+#
+# To create:
+#   1. Go to GitHub Settings > Developer settings > Personal access tokens > Tokens (classic)
+#   2. Generate new token with required scopes
+#   3. Update this secret with the generated token
+# -----------------------------------------------------------------------------
+
+resource "azurerm_key_vault_secret" "github_runner_pat" {
+  name         = "github-runner-pat"
+  value        = "ghp_PLACEHOLDER-REPLACE-IN-PRODUCTION"
+  key_vault_id = azurerm_key_vault.chatops.id
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    SecretType  = "AccessToken"
+    Service     = "GitHubRunners"
+    Owner       = var.owner
+    ManagedBy   = "Terraform"
+  }
+
+  depends_on = [
+    azurerm_key_vault.chatops
+  ]
+}
+
+# -----------------------------------------------------------------------------
+# GitHub Repository URL
+# -----------------------------------------------------------------------------
+# Full URL of the GitHub repository for runner registration.
+# Format: https://github.com/owner/repo
+#
+# This is stored as a secret for consistency with other runner configuration
+# and to allow easy updates without Terraform changes.
+# Recommended expiration: 365 days (infrastructure configuration)
+# -----------------------------------------------------------------------------
+
+resource "azurerm_key_vault_secret" "github_repository_url" {
+  name         = "github-repository-url"
+  value        = "https://github.com/${var.github_repository}"
+  key_vault_id = azurerm_key_vault.chatops.id
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    SecretType  = "Configuration"
+    Service     = "GitHubRunners"
+    Owner       = var.owner
+    ManagedBy   = "Terraform"
+  }
+
+  depends_on = [
+    azurerm_key_vault.chatops
+  ]
+}

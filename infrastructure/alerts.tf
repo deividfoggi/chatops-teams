@@ -240,3 +240,175 @@ resource "azurerm_monitor_scheduled_query_rules_alert_v2" "availability_test_fai
     ManagedBy   = "Terraform"
   }
 }
+
+# =============================================================================
+# GitHub Actions Runner Alerts
+# =============================================================================
+# Alerts for monitoring GitHub Actions runner health and performance.
+# These alerts help ensure runner availability and detect issues early.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Runner Container Startup Failure Alert
+# -----------------------------------------------------------------------------
+# Monitors for container startup failures in GitHub Actions runners.
+# Triggers when container groups fail to start or enter a failed state.
+# Severity: 1 (Error) - Indicates runner deployment issues requiring immediate attention
+#
+# Note: This alert uses Azure Resource Graph to query container group states.
+# It detects containers in "Failed" provisioning state or with restart count > 0.
+# -----------------------------------------------------------------------------
+
+resource "azurerm_monitor_scheduled_query_rules_alert_v2" "runner_container_failure" {
+  name                = "runner-container-startup-failure"
+  location            = azurerm_resource_group.chatops.location
+  resource_group_name = azurerm_resource_group.chatops.name
+  description         = "Alert when GitHub Actions runner containers fail to start or enter a failed state, indicating deployment or configuration issues."
+
+  evaluation_frequency = "PT5M"
+  window_duration      = "PT15M"
+  scopes               = [azurerm_log_analytics_workspace.chatops.id]
+  severity             = 1
+  enabled              = true
+
+  criteria {
+    query = <<-QUERY
+      ContainerInstanceLog_CL
+      | where ResourceGroup == "${azurerm_resource_group.chatops.name}"
+      | where ContainerGroup_s startswith "github-runner-${var.environment}"
+      | where Message contains "error" or Message contains "failed" or Message contains "exception"
+      | summarize ErrorCount = count() by ContainerGroup_s
+      | where ErrorCount > 0
+    QUERY
+
+    time_aggregation_method = "Count"
+    operator                = "GreaterThan"
+    threshold               = 0
+
+    failing_periods {
+      minimum_failing_periods_to_trigger_alert = 1
+      number_of_evaluation_periods             = 1
+    }
+  }
+
+  action {
+    action_groups = [azurerm_monitor_action_group.ops_alerts.id]
+  }
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    Purpose     = "GitHub Runners"
+    CostCenter  = var.cost_center
+    Owner       = var.owner
+    ManagedBy   = "Terraform"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Runner Registration Failure Alert
+# -----------------------------------------------------------------------------
+# Monitors for runner registration failures with GitHub Actions.
+# Triggers when runners fail to register successfully within 15 minutes.
+# Severity: 2 (Warning) - Indicates authentication or configuration issues
+# -----------------------------------------------------------------------------
+
+resource "azurerm_monitor_scheduled_query_rules_alert_v2" "runner_registration_failure" {
+  name                = "runner-registration-failure"
+  location            = azurerm_resource_group.chatops.location
+  resource_group_name = azurerm_resource_group.chatops.name
+  description         = "Alert when GitHub Actions runners fail to register with GitHub, indicating authentication or configuration issues."
+
+  evaluation_frequency = "PT5M"
+  window_duration      = "PT15M"
+  scopes               = [azurerm_log_analytics_workspace.chatops.id]
+  severity             = 2
+  enabled              = true
+
+  criteria {
+    query = <<-QUERY
+      ContainerInstanceLog_CL
+      | where ResourceGroup == "${azurerm_resource_group.chatops.name}"
+      | where ContainerGroup_s startswith "github-runner-${var.environment}"
+      | where Message contains "registration" and (Message contains "failed" or Message contains "error")
+      | summarize RegistrationFailures = count() by ContainerGroup_s
+      | where RegistrationFailures > 0
+    QUERY
+
+    time_aggregation_method = "Count"
+    operator                = "GreaterThan"
+    threshold               = 0
+
+    failing_periods {
+      minimum_failing_periods_to_trigger_alert = 1
+      number_of_evaluation_periods             = 1
+    }
+  }
+
+  action {
+    action_groups = [azurerm_monitor_action_group.ops_alerts.id]
+  }
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    Purpose     = "GitHub Runners"
+    CostCenter  = var.cost_center
+    Owner       = var.owner
+    ManagedBy   = "Terraform"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Runner High Failure Rate Alert
+# -----------------------------------------------------------------------------
+# Monitors for high failure rate in runner job executions.
+# Triggers when more than 3 job failures occur within 30 minutes.
+# Severity: 2 (Warning) - Indicates runner stability or resource issues
+# -----------------------------------------------------------------------------
+
+resource "azurerm_monitor_scheduled_query_rules_alert_v2" "runner_job_failure_rate" {
+  name                = "runner-job-failure-rate"
+  location            = azurerm_resource_group.chatops.location
+  resource_group_name = azurerm_resource_group.chatops.name
+  description         = "Alert when GitHub Actions runner jobs fail frequently, indicating runner stability or resource issues."
+
+  evaluation_frequency = "PT10M"
+  window_duration      = "PT30M"
+  scopes               = [azurerm_log_analytics_workspace.chatops.id]
+  severity             = 2
+  enabled              = true
+
+  criteria {
+    query = <<-QUERY
+      ContainerInstanceLog_CL
+      | where ResourceGroup == "${azurerm_resource_group.chatops.name}"
+      | where ContainerGroup_s startswith "github-runner-${var.environment}"
+      | where Message contains "job" and Message contains "failed"
+      | summarize JobFailures = count()
+      | where JobFailures > 3
+    QUERY
+
+    time_aggregation_method = "Count"
+    operator                = "GreaterThan"
+    threshold               = 3
+
+    failing_periods {
+      minimum_failing_periods_to_trigger_alert = 1
+      number_of_evaluation_periods             = 1
+    }
+  }
+
+  action {
+    action_groups = [azurerm_monitor_action_group.ops_alerts.id]
+  }
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    Purpose     = "GitHub Runners"
+    CostCenter  = var.cost_center
+    Owner       = var.owner
+    ManagedBy   = "Terraform"
+  }
+}
