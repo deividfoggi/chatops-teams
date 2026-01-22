@@ -19,7 +19,7 @@ resource "azurerm_service_plan" "chatops" {
   location            = azurerm_resource_group.chatops.location
   resource_group_name = azurerm_resource_group.chatops.name
   os_type             = "Linux"
-  sku_name            = "P0v3" # Premium v3 - Free tier with up to 1 GB memory
+  sku_name            = "B1" # Basic B1 - suitable for POC
 
   tags = {
     Environment = var.environment
