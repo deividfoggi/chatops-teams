@@ -21,11 +21,6 @@ resource "azurerm_service_plan" "chatops" {
   os_type             = "Linux"
   sku_name            = "P0v3" # Premium v3 - Free tier with up to 1 GB memory
 
-  # Allow the plan to be replaced when SKU changes (e.g., from FlexConsumption to Premium)
-  lifecycle {
-    create_before_destroy = true
-  }
-
   tags = {
     Environment = var.environment
     Application = "ChatOps"
