@@ -47,8 +47,9 @@ resource "azurerm_key_vault" "chatops" {
   soft_delete_retention_days = 90
   purge_protection_enabled   = true
 
-  # Network ACLs - temporarily allow all access for initial deployment
-  # TODO: Restrict to app subnet only after initial deployment
+  # Network ACLs - temporarily allow public access for initial deployment
+  # TODO: Change default_action to "Deny" after GitHub self-hosted runners are deployed
+  # Private Endpoint is configured below for private connectivity
   network_acls {
     default_action             = "Allow"
     bypass                     = "AzureServices"
@@ -146,3 +147,83 @@ resource "azurerm_role_assignment" "kv_secrets_officer" {
 # is created with its managed identity. It grants read-only access to secrets,
 # following the principle of least privilege for application runtime access.
 # -----------------------------------------------------------------------------
+
+# =============================================================================
+# Key Vault Private Endpoint Configuration
+# =============================================================================
+# Private Endpoint for secure, private connectivity to Key Vault.
+# Public access remains enabled temporarily for initial deployment.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Key Vault Subnet Configuration
+# -----------------------------------------------------------------------------
+
+resource "azurerm_subnet" "keyvault_subnet" {
+  name                 = "chatops-keyvault-subnet"
+  resource_group_name  = azurerm_resource_group.chatops.name
+  virtual_network_name = azurerm_virtual_network.chatops_vnet.name
+  address_prefixes     = ["10.0.5.0/24"]
+}
+
+# -----------------------------------------------------------------------------
+# Private Endpoint for Key Vault
+# -----------------------------------------------------------------------------
+
+resource "azurerm_private_endpoint" "keyvault" {
+  name                = "chatops-keyvault-pe"
+  location            = azurerm_resource_group.chatops.location
+  resource_group_name = azurerm_resource_group.chatops.name
+  subnet_id           = azurerm_subnet.keyvault_subnet.id
+
+  private_service_connection {
+    name                           = "chatops-keyvault-psc"
+    private_connection_resource_id = azurerm_key_vault.chatops.id
+    is_manual_connection           = false
+    subresource_names              = ["vault"]
+  }
+
+  private_dns_zone_group {
+    name                 = "keyvault-dns-zone-group"
+    private_dns_zone_ids = [azurerm_private_dns_zone.keyvault.id]
+  }
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    ManagedBy   = "Terraform"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Private DNS Zone for Key Vault
+# -----------------------------------------------------------------------------
+
+resource "azurerm_private_dns_zone" "keyvault" {
+  name                = "privatelink.vaultcore.azure.net"
+  resource_group_name = azurerm_resource_group.chatops.name
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    ManagedBy   = "Terraform"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Link Private DNS Zone to VNet
+# -----------------------------------------------------------------------------
+
+resource "azurerm_private_dns_zone_virtual_network_link" "keyvault" {
+  name                  = "chatops-keyvault-dns-link"
+  resource_group_name   = azurerm_resource_group.chatops.name
+  private_dns_zone_name = azurerm_private_dns_zone.keyvault.name
+  virtual_network_id    = azurerm_virtual_network.chatops_vnet.id
+  registration_enabled  = false
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    ManagedBy   = "Terraform"
+  }
+}

@@ -8,8 +8,10 @@
 # -----------------------------------------------------------------------------
 # App Service Plan
 # -----------------------------------------------------------------------------
-# Flex Consumption SKU (FC1) provides serverless scaling with automatic
-# scaling capabilities and pay-per-execution pricing model.
+# Premium v3 SKU (P0v3) provides cost-effective serverless scaling with
+# automatic scaling capabilities for production workloads.
+# Note: Changed from FC1 (Flex Consumption) as that SKU is designed for
+# Azure Functions, not traditional web apps.
 # -----------------------------------------------------------------------------
 
 resource "azurerm_service_plan" "chatops" {
@@ -17,7 +19,7 @@ resource "azurerm_service_plan" "chatops" {
   location            = azurerm_resource_group.chatops.location
   resource_group_name = azurerm_resource_group.chatops.name
   os_type             = "Linux"
-  sku_name            = "FC1"
+  sku_name            = "P0v3" # Premium v3 - Free tier with up to 1 GB memory
 
   tags = {
     Environment = var.environment
@@ -172,7 +174,7 @@ resource "azurerm_linux_web_app" "chatops" {
   }
 
   site_config {
-    always_on           = false # Not supported in Flex Consumption
+    always_on           = true # Supported in Premium v3
     http2_enabled       = true
     minimum_tls_version = "1.2"
 

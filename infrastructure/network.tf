@@ -296,6 +296,13 @@ resource "azurerm_storage_account" "nsg_flow_logs" {
   # For now, setting to false and relying on RBAC with managed identity
   shared_access_key_enabled = false
 
+  # TODO: Add network rules to restrict access after GitHub self-hosted runners are deployed
+  # network_rules {
+  #   default_action             = "Deny"
+  #   bypass                     = ["AzureServices"]
+  #   virtual_network_subnet_ids = [azurerm_subnet.app_subnet.id]
+  # }
+
   tags = {
     Environment = var.environment
     Application = "ChatOps"

@@ -2,14 +2,14 @@
 # Azure Cache for Redis Configuration
 # =============================================================================
 # This file defines the Azure Cache for Redis infrastructure for the ChatOps
-# Teams application following Azure Well-Architected Framework principles.
+# Teams application for POC/Development purposes with private connectivity.
 #
 # Key Features:
-#   - Premium P1 tier (6GB) with data persistence and geo-replication support
+#   - Standard C1 tier (2.5GB) - suitable for POC with private connectivity
 #   - TLS 1.2 minimum version for secure connections
-#   - RDB persistence with 15-minute snapshots
-#   - LRU eviction policy (allkeys-lru)
-#   - VNet injection for secure, private connectivity
+#   - Private Endpoint for secure VNet connectivity
+#   - Public network access disabled
+#   - Faster provisioning than Premium (~10 minutes vs 20-30)
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -28,7 +28,7 @@ resource "random_string" "redis_suffix" {
 # -----------------------------------------------------------------------------
 # Redis Subnet Configuration
 # -----------------------------------------------------------------------------
-# Dedicated subnet for Azure Cache for Redis with service delegation.
+# Dedicated subnet for Redis Private Endpoint.
 # This subnet provides network isolation for the Redis cache instance.
 # -----------------------------------------------------------------------------
 
@@ -43,14 +43,13 @@ resource "azurerm_subnet" "redis_subnet" {
 }
 
 # -----------------------------------------------------------------------------
-# Azure Cache for Redis - Premium P1
+# Azure Cache for Redis - Standard C1
 # -----------------------------------------------------------------------------
-# Premium tier Redis cache with:
-#   - 6GB capacity
-#   - Data persistence (RDB snapshots)
-#   - Geo-replication support
-#   - VNet injection for secure connectivity
+# Standard tier Redis cache with:
+#   - 2.5GB capacity (sufficient for POC)
 #   - SSL/TLS encryption
+#   - Private Endpoint connectivity
+#   - Public network access disabled
 # -----------------------------------------------------------------------------
 
 resource "azurerm_redis_cache" "chatops" {
@@ -58,12 +57,12 @@ resource "azurerm_redis_cache" "chatops" {
   location            = azurerm_resource_group.chatops.location
   resource_group_name = azurerm_resource_group.chatops.name
   capacity            = 1
-  family              = "P"
-  sku_name            = "Premium"
+  family              = "C"
+  sku_name            = "Standard"
 
-  # VNet injection - deploys Redis into the dedicated subnet
-  # This provides network isolation without needing private endpoints
-  subnet_id = azurerm_subnet.redis_subnet.id
+  # TODO: Set to false after GitHub self-hosted runners are deployed
+  # Temporarily allow public access for initial deployment and configuration
+  public_network_access_enabled = true
 
   # Enable TLS 1.2 minimum version
   minimum_tls_version = "1.2"
@@ -71,21 +70,10 @@ resource "azurerm_redis_cache" "chatops" {
   # Disable non-SSL port (SSL/TLS only)
   enable_non_ssl_port = false
 
-  # Redis configuration
+  # Redis configuration for Standard tier
   redis_configuration {
-    # Enable RDB persistence - snapshot every 15 minutes (900 seconds)
-    rdb_backup_enabled            = true
-    rdb_backup_frequency          = 15
-    rdb_backup_max_snapshot_count = 1
-
-    # Storage account for persistence backups
-    rdb_storage_connection_string = azurerm_storage_account.redis_backup.primary_connection_string
-
     # Set maxmemory policy to LRU (Least Recently Used)
     maxmemory_policy = "allkeys-lru"
-
-    # Disable AOF persistence (using RDB only)
-    aof_backup_enabled = false
 
     # Notify keyspace events for cache monitoring
     notify_keyspace_events = "KEx"
@@ -98,31 +86,73 @@ resource "azurerm_redis_cache" "chatops" {
     Owner       = var.owner
     ManagedBy   = "Terraform"
     Purpose     = "DistributedCache"
+    Tier        = "POC"
   }
 }
 
 # -----------------------------------------------------------------------------
-# Storage Account for Redis Backup
+# Private Endpoint for Redis
 # -----------------------------------------------------------------------------
-# Dedicated storage account for Redis RDB persistence backups.
-# This ensures backup data is stored securely and separately.
+# Creates a private endpoint for secure, private connectivity to Redis cache.
+# This eliminates public internet exposure.
 # -----------------------------------------------------------------------------
 
-resource "azurerm_storage_account" "redis_backup" {
-  name                     = "chatopsredisbkp${random_string.redis_suffix.result}"
-  resource_group_name      = azurerm_resource_group.chatops.name
-  location                 = azurerm_resource_group.chatops.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-  min_tls_version          = "TLS1_2"
+resource "azurerm_private_endpoint" "redis" {
+  name                = "chatops-redis-pe"
+  location            = azurerm_resource_group.chatops.location
+  resource_group_name = azurerm_resource_group.chatops.name
+  subnet_id           = azurerm_subnet.redis_subnet.id
 
-  # Redis requires connection string for RDB backups (Premium tier)
-  shared_access_key_enabled = true
+  private_service_connection {
+    name                           = "chatops-redis-psc"
+    private_connection_resource_id = azurerm_redis_cache.chatops.id
+    is_manual_connection           = false
+    subresource_names              = ["redisCache"]
+  }
+
+  private_dns_zone_group {
+    name                 = "redis-dns-zone-group"
+    private_dns_zone_ids = [azurerm_private_dns_zone.redis.id]
+  }
 
   tags = {
     Environment = var.environment
     Application = "ChatOps"
-    Purpose     = "RedisPersistence"
+    ManagedBy   = "Terraform"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Private DNS Zone for Redis
+# -----------------------------------------------------------------------------
+# DNS zone for private endpoint name resolution.
+# -----------------------------------------------------------------------------
+
+resource "azurerm_private_dns_zone" "redis" {
+  name                = "privatelink.redis.cache.windows.net"
+  resource_group_name = azurerm_resource_group.chatops.name
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
+    ManagedBy   = "Terraform"
+  }
+}
+
+# -----------------------------------------------------------------------------
+# Link Private DNS Zone to VNet
+# -----------------------------------------------------------------------------
+
+resource "azurerm_private_dns_zone_virtual_network_link" "redis" {
+  name                  = "chatops-redis-dns-link"
+  resource_group_name   = azurerm_resource_group.chatops.name
+  private_dns_zone_name = azurerm_private_dns_zone.redis.name
+  virtual_network_id    = azurerm_virtual_network.chatops_vnet.id
+  registration_enabled  = false
+
+  tags = {
+    Environment = var.environment
+    Application = "ChatOps"
     ManagedBy   = "Terraform"
   }
 }

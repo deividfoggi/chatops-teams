@@ -1,8 +1,8 @@
 # Product Backlog - ChatOps Teams Integration
 
-**Last Updated:** December 29, 2025
-**Total Epics:** 6
-**Total Stories:** 29
+**Last Updated:** January 6, 2026
+**Total Epics:** 8
+**Total Stories:** 43
 
 ---
 
@@ -13,6 +13,8 @@
 - [Epic 4: Deployment Review Workflow](#epic-4-deployment-review-workflow)
 - [Epic 5: Microsoft Teams Integration](#epic-5-microsoft-teams-integration)
 - [Epic 6: Azure Infrastructure & Security](#epic-6-azure-infrastructure--security)
+- [Epic 7: CI/CD Pipeline & Application Deployment](#epic-7-cicd-pipeline--application-deployment)
+- [Epic 8: Self-Hosted GitHub Runners in VNet](#epic-8-self-hosted-github-runners-in-vnet)
 
 ---
 
@@ -87,7 +89,7 @@ So that **the bot can query repository metadata, users, and configurations**
 #### Technical Notes
 - Use GitHub REST API v3 and GraphQL API where appropriate
 - Implement OAuth 2.0 authentication with GitHub Apps
-- Cache frequently accessed data (repository metadata, user lists) for 5 minutes
+- Use in-memory caching for frequently accessed data (repository metadata, user lists) with 5-minute TTL
 - Handle pagination for large result sets
 - Implement exponential backoff for rate limit handling
 
@@ -134,7 +136,9 @@ So that **notifications are sent to the correct Teams users**
 
 ### Story 1.4: Create Repository Metadata Cache
 
-**Priority:** Medium | **Story Points:** 5
+**Priority:** Low (Post-MVP) | **Story Points:** 5
+
+**Status:** ⏸️ **DEFERRED - Post-MVP Enhancement**
 
 #### User Story
 As a **Backend Developer**
@@ -149,18 +153,24 @@ So that **repeated API calls to GitHub are minimized and performance is optimize
 - [ ] Given cache metrics, when monitored, then hit/miss ratio is > 80%
 
 #### Technical Notes
-- Use Redis or Azure Cache for Redis for distributed caching
+**MVP Approach:**
+- Use in-memory caching only for MVP (simple Map-based cache with TTL)
 - Cache TTL: 5 minutes for repository metadata, 1 hour for user lists
-- Store: repository owners, Security champions, repository settings
-- Implement cache warming on application startup for active repositories
-- Add cache bypass header for troubleshooting
+- No persistence required for single-instance deployment
+- Built-in fallback mechanisms already implemented in code
+
+**Post-MVP Enhancement (when needed):**
+- Upgrade to Redis/Azure Cache for Redis for distributed caching
+- Enable when scaling to multiple app service instances
+- Add cache warming on application startup for active repositories
+- Implement cache bypass header for troubleshooting
 
 #### Labels
-`backend` `performance` `caching` `infrastructure`
+`backend` `performance` `caching` `post-mvp`
 
 #### Dependencies
-- Azure Cache for Redis provisioned
-- Repository list configured in settings
+- None for MVP (in-memory cache works out-of-box)
+- For distributed: Azure Cache for Redis provisioned (Story 6.5)
 
 ---
 
@@ -269,7 +279,7 @@ So that **they are included in critical security notifications**
 - Check GitHub repository custom properties: `owner_1`, `owner_2`
 - Parse CODEOWNERS file: look for `* @owner1 @owner2` default rule
 - Fall back to repository "Admin" role members if owners not defined
-- Cache owner information (TTL: 1 hour)
+- Use in-memory cache for owner information (TTL: 1 hour)
 - Support email-based owner definition for non-GitHub users
 
 #### Labels
@@ -277,7 +287,7 @@ So that **they are included in critical security notifications**
 
 #### Dependencies
 - GitHub API client implemented (Story 1.2)
-- Repository metadata cache (Story 1.4)
+- In-memory repository metadata cache (built-in)
 
 ---
 
@@ -309,7 +319,7 @@ So that **security expertise is immediately available for critical vulnerabiliti
 
 #### Dependencies
 - GitHub API client implemented (Story 1.2)
-- Repository metadata cache (Story 1.4)
+- In-memory repository metadata cache (built-in)
 
 ---
 
@@ -332,7 +342,7 @@ So that **notifications can be sent to the correct Teams channels and users**
 #### Technical Notes
 - Use Microsoft Graph API: `GET /users/{id}`
 - Batch user lookups: `POST /$batch` (max 20 per request)
-- Cache Teams user objects (TTL: 1 hour)
+- Use in-memory cache for Teams user objects (TTL: 1 hour)
 - Retrieve user presence: `GET /users/{id}/presence` for urgency handling
 - Handle guest users and external collaborators
 
@@ -478,7 +488,7 @@ So that **Dependabot notifications can be sent to all members when configured**
 - [ ] Given a repository configuration, when "notify_all_members" flag is true, then all members are included in notifications
 - [ ] Given a repository configuration, when "notify_all_members" flag is false, then only Security Champion is notified
 - [ ] Given large repositories, when member lists exceed 50 users, then pagination is handled correctly
-- [ ] Given member retrieval, when cached, then cache invalidation occurs every 6 hours
+- [ ] Given member retrieval, when using in-memory cache, then cache invalidation occurs every 6 hours
 
 #### Technical Notes
 - Query GitHub API: `GET /repos/{owner}/{repo}/collaborators`
@@ -493,7 +503,7 @@ So that **Dependabot notifications can be sent to all members when configured**
 
 #### Dependencies
 - GitHub API client implemented (Story 1.2)
-- Repository metadata cache (Story 1.4)
+- In-memory repository metadata cache (built-in)
 
 ---
 
@@ -510,7 +520,7 @@ So that **Dependabot notifications reach the correct people in Teams**
 - [ ] Given repository members list, when mapped, then Teams user IDs are resolved for all members
 - [ ] Given unmapped users, when they exist, then warnings are logged and admins are notified
 - [ ] Given batch mapping, when performed, then API calls are optimized using Graph API $batch
-- [ ] Given mapping cache, when used, then stale data is refreshed every hour
+- [ ] Given in-memory mapping cache, when used, then stale data is refreshed every hour
 
 #### Technical Notes
 - Reuse user mapping logic from Story 1.3
@@ -643,7 +653,7 @@ So that **only authorized individuals can approve production deployments**
 - For teams: query `GET /teams/{team_id}/members`
 - Extract: `required_reviewers.type` (User or Team), `required_reviewers.id`
 - Extract: `protection_rules.required_reviewers.count` for minimum approvals needed
-- Cache environment protection rules (TTL: 10 minutes)
+- Use in-memory cache for environment protection rules (TTL: 10 minutes)
 
 #### Labels
 `backend` `github` `deployments` `authorization` `bot-handlers`
@@ -666,7 +676,7 @@ So that **approval requests can be sent to the correct Teams users**
 #### Acceptance Criteria
 - [ ] Given GitHub approvers list, when mapped, then all Teams user IDs are resolved
 - [ ] Given unmapped approvers, when they exist, then fallback notifications are sent to admins
-- [ ] Given approver mapping, when cached, then TTL is 30 minutes
+- [ ] Given approver mapping, when using in-memory cache, then TTL is 30 minutes
 - [ ] Given batch processing, when needed, then Graph API batch requests are used
 
 #### Technical Notes
@@ -949,7 +959,7 @@ So that **alert data can be transformed into Teams notifications**
 - Validate generated JSON against Adaptive Cards schema
 - Implement content truncation: max card size 28 KB
 - Sanitize user-generated content to prevent XSS
-- Cache rendered cards for identical alerts (TTL: 5 minutes)
+- Use in-memory cache for rendered cards for identical alerts (TTL: 5 minutes)
 
 #### Labels
 `backend` `teams` `adaptive-cards` `templating`
@@ -1245,12 +1255,21 @@ So that **secrets are centrally managed, encrypted, and never stored in code**
 
 ### Story 6.5: Provision Azure Cache for Redis
 
-**Priority:** High | **Story Points:** 5
+**Priority:** Low (Post-MVP) | **Story Points:** 5
+
+**Status:** ⏸️ **DEFERRED - Not Required for MVP**
 
 #### User Story
 As a **Backend Developer**
 I want **Azure Cache for Redis provisioned and configured**
 So that **distributed caching works across multiple App Service instances for repository metadata, conversation references, and rate limiting**
+
+#### Rationale for Deferral
+- **MVP uses single App Service instance** - distributed cache not needed
+- **In-memory caching sufficient** - application has built-in fallback
+- **Cost optimization** - Premium P1 Redis (~$184/month) expensive for dev/test
+- **Deployment complexity** - Redis creation takes 45-60 minutes, causing pipeline timeouts
+- **Enable when needed:** Multi-instance scaling or production deployment
 
 #### Acceptance Criteria
 - [ ] Given Redis cache, when provisioned, then it uses Premium tier with persistence and geo-replication enabled
@@ -1260,6 +1279,13 @@ So that **distributed caching works across multiple App Service instances for re
 - [ ] Given Redis credentials, when stored, then they are retrieved from Key Vault using managed identity
 
 #### Technical Notes
+**When to Enable:**
+- Scaling to 2+ App Service instances (horizontal scaling required)
+- Production environment deployment
+- GitHub API rate limits becoming a concern
+- Need for persistent cache across deployments
+
+**Implementation Details:**
 - Create Azure Cache for Redis: `chatops-redis-{unique-suffix}`
 - SKU: Premium P1 (6GB) or higher for production
   - Supports data persistence (RDB and AOF)
@@ -1289,13 +1315,13 @@ So that **distributed caching works across multiple App Service instances for re
   - Connection errors > 5 in 5 minutes
 
 #### Labels
-`infrastructure` `azure` `redis` `caching` `performance`
+`infrastructure` `azure` `redis` `caching` `performance` `post-mvp`
 
 #### Dependencies
 - VNet and subnets deployed (Story 6.1)
 - App Service with managed identity deployed (Story 6.3)
 - Key Vault deployed (Story 6.4)
-- Application code already supports Redis with fallback (Story 1.4 completed)
+- Application code already supports Redis with fallback (built-in)
 
 ---
 
@@ -1511,6 +1537,431 @@ So that **infrastructure for different environments (dev, staging, prod) is prop
 
 ---
 
+# Epic 8: Self-Hosted GitHub Runners in VNet
+
+## Overview
+Deploy GitHub Actions self-hosted runners within a dedicated subnet in the Azure VNet to enable secure infrastructure deployments without requiring public access to Azure resources. This epic eliminates the need for public endpoints while maintaining full CI/CD automation capabilities.
+
+## Goals
+- Deploy self-hosted GitHub Actions runners in a secure VNet subnet
+- Enable private connectivity to all Azure resources (Key Vault, App Service, Redis, etc.)
+- Remove dependency on public access for infrastructure deployments
+- Implement automatic runner scaling based on workload
+- Ensure secure runner configuration with secrets management
+
+## Success Metrics
+- 100% of infrastructure deployments execute via self-hosted runners
+- Zero public access endpoints required for CI/CD operations
+- Runner provisioning time < 5 minutes
+- 99.5% runner availability during business hours
+- < 2 minute delay from workflow trigger to runner assignment
+
+## User Stories
+- [Story 8.1: Create Dedicated Subnet for GitHub Runners](#story-81-create-dedicated-subnet-for-github-runners)
+- [Story 8.2: Deploy Azure Container Instances for Runners](#story-82-deploy-azure-container-instances-for-runners)
+- [Story 8.3: Configure Runner Authentication and Registration](#story-83-configure-runner-authentication-and-registration)
+- [Story 8.4: Implement Private Network Connectivity](#story-84-implement-private-network-connectivity)
+- [Story 8.5: Create GitHub Actions Workflows for Runner-Based Deployment](#story-85-create-github-actions-workflows-for-runner-based-deployment)
+- [Story 8.6: Implement Runner Auto-Scaling](#story-86-implement-runner-auto-scaling)
+- [Story 8.7: Configure Monitoring and Alerts for Runners](#story-87-configure-monitoring-and-alerts-for-runners)
+
+## Dependencies
+- Azure VNet and subnets configured (Epic 6)
+- Key Vault with private endpoint (Story 6.4)
+- Network security groups and routing configured
+
+## Estimated Effort
+**Size:** X-Large
+
+---
+
+### Story 8.1: Create Dedicated Subnet for GitHub Runners
+
+**Priority:** High | **Story Points:** 5
+
+#### User Story
+As a **DevOps Engineer**
+I want **to create a dedicated subnet within the VNet for GitHub Actions runners**
+So that **runners have isolated network resources and proper security boundaries**
+
+#### Acceptance Criteria
+- [ ] Given the existing VNet, when the runner subnet is created, then it has a /27 CIDR block (32 addresses)
+- [ ] Given the runner subnet, when NSG rules are applied, then outbound HTTPS (443) to GitHub is allowed
+- [ ] Given the runner subnet, when NSG rules are applied, then inbound traffic is denied except from Application Gateway subnet
+- [ ] Given the runner subnet, when created, then it has service endpoints for Key Vault, Storage, and SQL
+- [ ] Given the runner subnet, when delegated, then Azure Container Instances can deploy resources
+
+#### Technical Notes
+- Subnet naming: `snet-github-runners-{environment}`
+- Address space: Use next available /27 from VNet address space
+- NSG rules required:
+  - Outbound: Allow 443 to GitHub (`api.github.com`, `github.com`, `*.actions.githubusercontent.com`)
+  - Outbound: Allow 443 to Azure services (Key Vault, Storage, Container Registry)
+  - Outbound: Allow DNS (53) to Azure DNS
+  - Inbound: Deny all
+- Service endpoints: `Microsoft.KeyVault`, `Microsoft.Storage`, `Microsoft.Sql`
+- Subnet delegation: `Microsoft.ContainerInstance/containerGroups`
+- Add route to route table for Application Gateway subnet access
+
+#### Labels
+`infrastructure` `terraform` `azure` `networking`
+
+#### Dependencies
+- VNet and base network infrastructure deployed (Story 6.1)
+
+#### Definition of Done
+- [ ] Terraform code for runner subnet created
+- [ ] NSG rules configured and associated with subnet
+- [ ] Service endpoints enabled
+- [ ] Subnet delegation configured
+- [ ] Documentation updated with IP allocation
+
+---
+
+### Story 8.2: Deploy Azure Container Instances for Runners
+
+**Priority:** High | **Story Points:** 8
+
+#### User Story
+As a **DevOps Engineer**
+I want **to deploy GitHub Actions runners as Azure Container Instances**
+So that **I have ephemeral, scalable runners that execute in the secure VNet**
+
+#### Acceptance Criteria
+- [ ] Given the runner subnet, when ACI is deployed, then it launches successfully with GitHub runner image
+- [ ] Given the container instance, when started, then it registers with GitHub Actions as a self-hosted runner
+- [ ] Given the runner, when idle for > 30 minutes, then the container is automatically terminated
+- [ ] Given runner deployment, when it fails, then alerts are sent and automatic retry occurs
+- [ ] Given multiple environments (dev/staging/prod), when deployed, then runners are properly isolated by labels
+
+#### Technical Notes
+- Base image: `ghcr.io/actions/actions-runner:latest` or custom image
+- Container specs:
+  - CPU: 2 cores
+  - Memory: 4 GB
+  - OS: Linux (Ubuntu 22.04)
+- Environment variables:
+  - `GITHUB_REPOSITORY`: Target repository
+  - `RUNNER_NAME`: Unique runner identifier
+  - `RUNNER_LABELS`: Environment labels (e.g., `self-hosted,azure,vnet,dev`)
+  - `RUNNER_GROUP`: Default or custom runner group
+- Startup script: Register runner with GitHub using registration token
+- Managed Identity: Assign identity for accessing Key Vault secrets
+- Network profile: Attach to runner subnet
+- Restart policy: Never (ephemeral runners)
+
+#### Labels
+`infrastructure` `terraform` `azure` `containers` `devops`
+
+#### Dependencies
+- Runner subnet created (Story 7.1)
+- Container Registry with runner image
+- GitHub App or PAT for runner registration in Key Vault
+
+#### Definition of Done
+- [ ] Terraform module for ACI runner deployment created
+- [ ] Container successfully registers with GitHub
+- [ ] Runner executes test workflow successfully
+- [ ] Managed Identity configured for Key Vault access
+- [ ] Documentation with troubleshooting guide created
+
+---
+
+### Story 8.3: Configure Runner Authentication and Registration
+
+**Priority:** High | **Story Points:** 5
+
+#### User Story
+As a **Security Engineer**
+I want **to securely manage GitHub runner registration tokens and authentication**
+So that **runners authenticate properly without exposing credentials in code or logs**
+
+#### Acceptance Criteria
+- [ ] Given runner registration, when token is needed, then it is retrieved from Key Vault via Managed Identity
+- [ ] Given GitHub App authentication, when configured, then runners use app-based registration tokens
+- [ ] Given registration tokens, when expired, then automatic token refresh occurs
+- [ ] Given runner logs, when reviewed, then no secrets or tokens are visible
+- [ ] Given token rotation, when performed, then active runners are not impacted
+
+#### Technical Notes
+- Preferred: Use GitHub App with `administration:write` permission for runner management
+- Alternative: Store GitHub PAT with `repo`, `workflow`, `admin:org` scopes in Key Vault
+- Key Vault secrets:
+  - `github-runner-app-id`: GitHub App ID
+  - `github-runner-app-private-key`: GitHub App private key
+  - `github-runner-token`: Fallback PAT (if not using GitHub App)
+- Registration token API: `POST /repos/{owner}/{repo}/actions/runners/registration-token`
+- Token lifetime: 1 hour (refresh before expiration)
+- Implement token caching to avoid rate limits
+- Use Managed Identity for ACI to access Key Vault (no connection strings needed)
+
+#### Labels
+`security` `azure` `github` `key-vault` `devops`
+
+#### Dependencies
+- Key Vault deployed with private endpoint (Story 6.4)
+- GitHub App created and installed, or PAT generated
+- Managed Identity configured for ACI
+
+#### Definition of Done
+- [ ] GitHub App configured for runner registration
+- [ ] Secrets stored in Key Vault
+- [ ] Token retrieval and refresh logic implemented
+- [ ] Managed Identity permissions configured
+- [ ] Security audit completed (no hardcoded secrets)
+
+---
+
+### Story 8.4: Implement Private Network Connectivity
+
+**Priority:** High | **Story Points:** 5
+
+#### User Story
+As a **Network Engineer**
+I want **runners to access Azure resources via private endpoints only**
+So that **no public access is required for infrastructure deployments**
+
+#### Acceptance Criteria
+- [ ] Given a runner, when accessing Key Vault, then connection uses private endpoint (no public IP)
+- [ ] Given a runner, when accessing App Service, then deployment uses private endpoint or VNet integration
+- [ ] Given a runner, when accessing Redis, then connection uses private endpoint
+- [ ] Given a runner, when accessing Storage Account, then connection uses private endpoint
+- [ ] Given network traffic, when analyzed, then zero connections to public Azure endpoints occur
+
+#### Technical Notes
+- Verify private endpoints exist for:
+  - Key Vault (`privatelink.vaultcore.azure.net`)
+  - App Service (`privatelink.azurewebsites.net`)
+  - Redis Cache (`privatelink.redis.cache.windows.net`)
+  - Storage Account (`privatelink.blob.core.windows.net`)
+  - Container Registry (`privatelink.azurecr.io`)
+- Configure Azure Private DNS zones in VNet
+- Link DNS zones to VNet for automatic resolution
+- Update Terraform modules to disable public network access:
+  - Key Vault: `public_network_access_enabled = false`
+  - App Service: `public_network_access_enabled = false`
+  - Redis: `public_network_access_enabled = false`
+  - Storage: `allow_blob_public_access = false`
+- Test connectivity from runner subnet using `nslookup` and `curl`
+
+#### Labels
+`infrastructure` `networking` `security` `azure` `private-endpoints`
+
+#### Dependencies
+- Private endpoints deployed for all services (Epic 6)
+- Private DNS zones configured
+- Runner subnet with service endpoints (Story 7.1)
+
+#### Definition of Done
+- [ ] All services have public access disabled
+- [ ] Private DNS resolution verified
+- [ ] Test deployments succeed using only private connectivity
+- [ ] Network flow logs confirm no public endpoint usage
+- [ ] Documentation updated with network architecture
+
+---
+
+### Story 8.5: Create GitHub Actions Workflows for Runner-Based Deployment
+
+**Priority:** High | **Story Points:** 8
+
+#### User Story
+As a **DevOps Engineer**
+I want **to create GitHub Actions workflows that use self-hosted runners**
+So that **infrastructure and application deployments execute within the secure VNet**
+
+#### Acceptance Criteria
+- [ ] Given a workflow, when triggered, then it runs on self-hosted runners with correct labels
+- [ ] Given Terraform workflows, when executed, then infrastructure is deployed without public access
+- [ ] Given application workflows, when executed, then code is deployed to App Service via private endpoint
+- [ ] Given workflow runs, when completed, then runners are properly cleaned up
+- [ ] Given workflow failures, when they occur, then proper error handling and notifications are triggered
+
+#### Technical Notes
+Create workflows for:
+
+1. **Infrastructure Deployment** (`.github/workflows/deploy-infrastructure.yml`)
+```yaml
+runs-on: [self-hosted, azure, vnet, '${{ matrix.environment }}']
+```
+- Checkout code
+- Configure Azure credentials (Managed Identity or Service Principal from Key Vault)
+- Run Terraform init/plan/apply
+- Access Key Vault for secrets via private endpoint
+- Deploy to Azure resources via private endpoints
+
+2. **Application Deployment** (`.github/workflows/deploy-app.yml`)
+- Build Node.js application
+- Run tests
+- Deploy to App Service using Azure CLI with VNet integration
+- Verify deployment health
+
+3. **Runner Provisioning** (`.github/workflows/provision-runner.yml`)
+- Trigger on workflow_dispatch or schedule
+- Deploy new ACI runner instances as needed
+- Register runners with appropriate labels
+
+Workflow considerations:
+- Use `concurrency` to prevent parallel runs
+- Implement proper secret handling
+- Add timeout limits (60 minutes max)
+- Include deployment approval gates for production
+- Store runner labels in repository variables
+
+#### Labels
+`devops` `github-actions` `ci-cd` `automation`
+
+#### Dependencies
+- Runners deployed and registered (Story 7.2, 7.3)
+- Private network connectivity verified (Story 7.4)
+- Terraform code ready for deployment
+
+#### Definition of Done
+- [ ] Infrastructure deployment workflow created and tested
+- [ ] Application deployment workflow created and tested
+- [ ] Runner provisioning workflow created
+- [ ] All workflows use self-hosted runners
+- [ ] Documentation with workflow examples created
+- [ ] Workflows successfully deploy to dev environment
+
+---
+
+### Story 8.6: Implement Runner Auto-Scaling
+
+**Priority:** Medium | **Story Points:** 8
+
+#### User Story
+As a **Platform Engineer**
+I want **runners to automatically scale based on GitHub Actions queue depth**
+So that **workflows execute promptly without wasting resources on idle runners**
+
+#### Acceptance Criteria
+- [ ] Given high workflow queue depth, when detected, then additional runners are automatically provisioned
+- [ ] Given low queue depth, when detected, then excess runners are automatically terminated
+- [ ] Given scaling thresholds, when configured, then min (2) and max (10) runner counts are respected
+- [ ] Given scaling operations, when executed, then new runners register within 5 minutes
+- [ ] Given cost metrics, when reviewed, then runner costs are optimized with minimal idle time
+
+#### Technical Notes
+Options for auto-scaling implementation:
+
+**Option 1: GitHub Actions Auto-Scaling with Azure Functions**
+- Deploy Azure Function triggered by GitHub Actions webhook events
+- Monitor workflow queue: `GET /repos/{owner}/{repo}/actions/runs?status=queued`
+- Scaling logic:
+  - If queued jobs > available runners for > 2 min → provision +1 runner
+  - If idle runners > 1 for > 30 min → terminate oldest idle runner
+  - Respect min/max runner limits
+- Function triggered every 1-2 minutes
+
+**Option 2: Azure Container Instances with KEDA (Event-Driven)**
+- Use KEDA scaler for GitHub Actions runner queue
+- Automatic scaling based on webhook events
+- More complex setup but fully event-driven
+
+**Option 3: Manual scaling via scheduled workflow**
+- Less sophisticated but simpler
+- Scale runners based on schedule (business hours vs. off-hours)
+
+Recommended: Option 1 (Azure Function) for balance of simplicity and effectiveness
+
+Configuration:
+- Min runners: 2 (always available)
+- Max runners: 10 (cost control)
+- Scale-up trigger: > 3 queued jobs
+- Scale-down trigger: > 30 min idle time
+- Cooldown period: 5 minutes between scaling actions
+
+#### Labels
+`infrastructure` `automation` `azure-functions` `scaling` `cost-optimization`
+
+#### Dependencies
+- Runners deployed (Story 7.2)
+- GitHub API client available
+- Azure Functions deployed (or alternative scaling mechanism)
+
+#### Definition of Done
+- [ ] Auto-scaling logic implemented and tested
+- [ ] Scaling triggers verified with load testing
+- [ ] Min/max runner limits enforced
+- [ ] Cost metrics tracked in Azure Monitor
+- [ ] Documentation with scaling configuration guide
+
+---
+
+### Story 8.7: Configure Monitoring and Alerts for Runners
+
+**Priority:** Medium | **Story Points:** 5
+
+#### User Story
+As a **DevOps Engineer**
+I want **comprehensive monitoring and alerting for self-hosted runners**
+So that **runner issues are detected and resolved before impacting deployments**
+
+#### Acceptance Criteria
+- [ ] Given runner health, when monitored, then CPU, memory, and network metrics are collected
+- [ ] Given runner failures, when they occur, then alerts are sent to Teams and on-call engineer
+- [ ] Given workflow failures on runners, when detected, then logs are centralized in Log Analytics
+- [ ] Given runner registration failures, when they happen, then alerts trigger automatic retry
+- [ ] Given dashboards, when viewed, then runner status, utilization, and trends are visible
+
+#### Technical Notes
+Implement monitoring for:
+
+1. **Container Instance Metrics**
+   - CPU utilization (alert if > 80% for 10 min)
+   - Memory utilization (alert if > 85%)
+   - Network bytes sent/received
+   - Container restart count (alert if > 2 restarts in 1 hour)
+
+2. **GitHub Runner Metrics**
+   - Runner online/offline status
+   - Number of active runners
+   - Workflow queue depth
+   - Job execution time (P50, P95, P99)
+   - Registration failures
+
+3. **Deployment Metrics**
+   - Deployment success/failure rate
+   - Time from commit to deployment
+   - Failed deployment reasons
+
+Implement alerts:
+- Critical: All runners offline
+- Critical: Runner registration failures > 3 in 10 min
+- Warning: Average runner utilization > 80% (scale up needed)
+- Warning: Workflow queue > 5 jobs for > 5 min
+- Info: Runner auto-scaling events
+
+Create Application Insights dashboard:
+- Runner availability over time
+- Workflow execution metrics
+- Cost tracking (ACI spend per day/month)
+- Error rate and failure analysis
+
+Log collection:
+- Stream runner logs to Log Analytics workspace
+- Parse workflow logs for error patterns
+- Retain logs for 90 days
+
+#### Labels
+`monitoring` `observability` `azure-monitor` `alerts` `dashboards`
+
+#### Dependencies
+- Application Insights configured (Story 6.9)
+- Runners deployed (Story 7.2)
+- Alert action groups created
+
+#### Definition of Done
+- [ ] All metrics collected in Azure Monitor
+- [ ] Alert rules configured and tested
+- [ ] Application Insights dashboard created
+- [ ] Log Analytics workspace ingesting runner logs
+- [ ] Alert notification sent to Teams channel
+- [ ] Runbook documentation for common alerts created
+
+---
+
 ## Implementation Roadmap
 
 ### Phase 1: Foundation (Weeks 1-3)
@@ -1532,7 +1983,14 @@ So that **infrastructure for different environments (dev, staging, prod) is prop
 - Performance optimization
 - Security hardening
 
-### Phase 5: Launch & Iteration (Week 12+)
+### Phase 5: Secure CI/CD with Self-Hosted Runners (Weeks 12-13)
+- Epic 7: CI/CD Pipeline & Application Deployment
+- Epic 8: Self-Hosted GitHub Runners in VNet
+- Remove public access from all Azure resources
+- Migrate deployment workflows to self-hosted runners
+- Load testing and scaling validation
+
+### Phase 6: Launch & Iteration (Week 14+)
 - Production deployment
 - User training
 - Monitoring and incident response
@@ -1542,8 +2000,8 @@ So that **infrastructure for different environments (dev, staging, prod) is prop
 
 ## Summary Statistics
 
-**Total Epics:** 6
-**Total User Stories:** 29
+**Total Epics:** 8
+**Total User Stories:** 43
 
 **Story Points by Epic:**
 - Epic 1: 26 points
@@ -1552,12 +2010,14 @@ So that **infrastructure for different environments (dev, staging, prod) is prop
 - Epic 4: 34 points
 - Epic 5: 47 points
 - Epic 6: 49 points
+- Epic 7: 44 points (CI/CD Pipeline)
+- Epic 8: 44 points (Self-Hosted Runners)
 
-**Total Story Points:** 196 points
+**Total Story Points:** 284 points
 
-**Estimated Timeline:** 12-14 weeks (assuming team velocity of 15-20 points per week)
+**Estimated Timeline:** 16-18 weeks (assuming team velocity of 15-20 points per week)
 
 **Priority Breakdown:**
-- High Priority: 24 stories
-- Medium Priority: 5 stories
+- High Priority: 34 stories
+- Medium Priority: 9 stories
 - Low Priority: 0 stories
