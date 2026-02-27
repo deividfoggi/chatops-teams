@@ -9,6 +9,7 @@
 const { GitHubClient, Cache, RateLimiter } = require('./githubClient');
 const { identifyCommitAuthor, identifyMultipleCommitAuthors, isBot } = require('./commitAuthorService');
 const RepositoryStakeholderService = require('./repositoryStakeholderService');
+const RepositoryMemberMappingService = require('./repositoryMemberMappingService');
 
 module.exports = {
   GitHubClient,
@@ -18,4 +19,5 @@ module.exports = {
   identifyMultipleCommitAuthors,
   isBot,
   RepositoryStakeholderService,
+  RepositoryMemberMappingService,
 };
