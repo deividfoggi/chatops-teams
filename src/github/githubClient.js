@@ -653,6 +653,90 @@ class GitHubClient {
     const data = await this.request('GET', '/rate_limit', null, false);
     return data.rate;
   }
+
+  /**
+   * Gets repository custom properties
+   * 
+   * @param {string} owner - Repository owner
+   * @param {string} repo - Repository name
+   * @returns {Promise<Object|null>} Custom properties object or null
+   */
+  async getRepositoryCustomProperties(owner, repo) {
+    try {
+      // GitHub API for custom properties (requires GitHub Enterprise or specific permissions)
+      const data = await this.request('GET', `/repos/${owner}/${repo}/properties`);
+      return data;
+    } catch (error) {
+      // Custom properties might not be available or accessible
+      console.debug(`Could not retrieve custom properties for ${owner}/${repo}:`, error.message);
+      return null;
+    }
+  }
+
+  /**
+   * Gets file content from repository
+   * 
+   * @param {string} owner - Repository owner
+   * @param {string} repo - Repository name
+   * @param {string} path - File path in repository
+   * @param {string} [ref] - Git ref (branch, tag, commit SHA)
+   * @returns {Promise<string>} File content as string
+   */
+  async getFileContent(owner, repo, path, ref = null) {
+    const queryParams = ref ? `?ref=${ref}` : '';
+    const data = await this.request('GET', `/repos/${owner}/${repo}/contents/${path}${queryParams}`);
+    
+    if (data && data.content) {
+      return Buffer.from(data.content, 'base64').toString('utf-8');
+    }
+    
+    throw new Error(`File ${path} not found in ${owner}/${repo}`);
+  }
+
+  /**
+   * Gets repository admins (users with admin permission)
+   * 
+   * @param {string} owner - Repository owner
+   * @param {string} repo - Repository name
+   * @returns {Promise<Array<Object>>} Array of admin users
+   */
+  async getRepositoryAdmins(owner, repo) {
+    try {
+      const collaborators = await this.getAllPaginated(`/repos/${owner}/${repo}/collaborators`, {
+        perPage: 100,
+      });
+      
+      // Filter for admin permission
+      const admins = collaborators.filter(collab => 
+        collab.permissions && collab.permissions.admin === true
+      );
+      
+      return admins;
+    } catch (error) {
+      console.error(`Error retrieving admins for ${owner}/${repo}:`, error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Gets repository topics
+   * 
+   * @param {string} owner - Repository owner
+   * @param {string} repo - Repository name
+   * @returns {Promise<Array<string>>} Array of topic names
+   */
+  async getRepositoryTopics(owner, repo) {
+    try {
+      const data = await this.request('GET', `/repos/${owner}/${repo}/topics`, null, true, {
+        Accept: 'application/vnd.github.mercy-preview+json',
+      });
+      
+      return data.names || [];
+    } catch (error) {
+      console.error(`Error retrieving topics for ${owner}/${repo}:`, error.message);
+      return [];
+    }
+  }
 }
 
 module.exports = {

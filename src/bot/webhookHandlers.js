@@ -16,9 +16,10 @@ const { identifyCommitAuthor } = require('../github');
  * @param {Object} payload - The webhook payload
  * @param {Object} telemetryClient - Application Insights client
  * @param {Object} githubClient - GitHub API client instance (optional)
+ * @param {Object} notificationService - CodeScanningNotificationService instance (optional)
  * @returns {Promise<Object>} Processing result
  */
-async function handleCodeScanningAlert(payload, telemetryClient, githubClient) {
+async function handleCodeScanningAlert(payload, telemetryClient, githubClient, notificationService) {
   const { action, alert, repository, sender } = payload;
   const repositoryFullName = repository?.full_name || 'unknown';
 
@@ -105,9 +106,40 @@ async function handleCodeScanningAlert(payload, telemetryClient, githubClient) {
 
   console.log(`Code scanning alert processed: ${JSON.stringify(result)}`);
 
-  // TODO: Route to Logic App workflow for escalated alerts
-  // If shouldEscalate is true, send to Teams notification workflow
-  // All alerts are logged to Azure Log Analytics via Application Insights
+  // Send notification to Teams if alert should be escalated
+  if (shouldEscalate && notificationService) {
+    try {
+      console.log(`Sending Teams notification for escalated alert #${alert?.number}`);
+      
+      const notificationResult = await notificationService.processAndNotify({
+        alert,
+        repository,
+        metadata,
+        authorInfo: result.authorIdentification,
+      });
+
+      result.notification = notificationResult;
+
+      if (notificationResult.success) {
+        console.log(`Successfully sent ${notificationResult.notificationResult.sent} notification(s)`);
+      } else {
+        console.error(`Notification failed: ${notificationResult.message}`);
+      }
+    } catch (error) {
+      console.error('Error sending Teams notification:', error.message);
+      result.notificationError = error.message;
+
+      if (telemetryClient) {
+        telemetryClient.trackException(error, {
+          repository: repositoryFullName,
+          alertNumber: String(alert?.number),
+          operation: 'sendNotification',
+        });
+      }
+    }
+  } else if (shouldEscalate && !notificationService) {
+    console.warn('Alert should be escalated but notification service not configured');
+  }
 
   return result;
 }
@@ -244,15 +276,16 @@ async function handlePing(payload, telemetryClient) {
  * @param {Object} payload - The webhook payload
  * @param {Object} telemetryClient - Application Insights client
  * @param {Object} githubClient - GitHub API client instance (optional)
+ * @param {Object} notificationService - CodeScanningNotificationService instance (optional)
  * @returns {Promise<Object>} Processing result
  */
-async function routeWebhookEvent(eventType, payload, telemetryClient, githubClient) {
+async function routeWebhookEvent(eventType, payload, telemetryClient, githubClient, notificationService) {
   try {
     let result;
 
     switch (eventType) {
       case 'code_scanning_alert':
-        result = await handleCodeScanningAlert(payload, telemetryClient, githubClient);
+        result = await handleCodeScanningAlert(payload, telemetryClient, githubClient, notificationService);
         break;
 
       case 'dependabot_alert':
