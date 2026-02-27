@@ -146,15 +146,20 @@ async function handleCodeScanningAlert(payload, telemetryClient, githubClient, n
 
 /**
  * Handles Dependabot alert webhook events
- * 
+ *
  * @param {Object} payload - The webhook payload
  * @param {Object} telemetryClient - Application Insights client
+ * @param {Object} [dependabotNotificationService] - DependabotNotificationService instance (optional)
+ * @param {boolean} [notifyAllMembers=false] - Whether to notify all repository members
  * @returns {Promise<Object>} Processing result
  */
-async function handleDependabotAlert(payload, telemetryClient) {
+async function handleDependabotAlert(payload, telemetryClient, dependabotNotificationService, notifyAllMembers = false) {
   const { action, alert, repository, sender } = payload;
+  const repositoryFullName = repository?.full_name || 'unknown';
+  const severity = alert?.security_advisory?.severity || 'unknown';
+  const packageName = alert?.security_vulnerability?.package?.name || 'unknown';
 
-  console.log(`Processing dependabot_alert: action=${action}, alert=${alert?.number}, repo=${repository?.full_name}`);
+  console.log(`Processing dependabot_alert: action=${action}, alert=${alert?.number}, repo=${repositoryFullName}`);
 
   // Track event in Application Insights
   if (telemetryClient) {
@@ -162,10 +167,10 @@ async function handleDependabotAlert(payload, telemetryClient) {
       eventType: 'dependabot_alert',
       action: action,
       alertNumber: String(alert?.number || 'unknown'),
-      repository: repository?.full_name || 'unknown',
-      severity: alert?.security_advisory?.severity || 'unknown',
+      repository: repositoryFullName,
+      severity,
       state: alert?.state || 'unknown',
-      package: alert?.security_vulnerability?.package?.name || 'unknown',
+      package: packageName,
       sender: sender?.login || 'unknown',
     });
 
@@ -173,25 +178,58 @@ async function handleDependabotAlert(payload, telemetryClient) {
     if (alert?.security_advisory?.severity) {
       telemetryClient.trackMetric('DependabotAlertsBySeverity', 1, {
         severity: alert.security_advisory.severity,
-        repository: repository?.full_name,
-        package: alert?.security_vulnerability?.package?.name,
+        repository: repositoryFullName,
+        package: packageName,
       });
     }
   }
 
-  // TODO: Route to Logic App workflow for Dependabot alerts
   const result = {
     status: 'processed',
     eventType: 'dependabot_alert',
     action: action,
     alertNumber: alert?.number,
-    repository: repository?.full_name,
-    severity: alert?.security_advisory?.severity,
-    package: alert?.security_vulnerability?.package?.name,
+    repository: repositoryFullName,
+    severity,
+    package: packageName,
     message: `Dependabot alert ${action}: ${alert?.security_advisory?.summary || 'No summary'}`,
   };
 
   console.log(`Dependabot alert processed: ${JSON.stringify(result)}`);
+
+  // Send notification to Teams if notification service is configured
+  if (dependabotNotificationService && alert && repository) {
+    try {
+      console.log(`Sending Teams notification for Dependabot alert #${alert?.number}`);
+
+      const notificationResult = await dependabotNotificationService.processAndNotify({
+        alert,
+        repository,
+        notifyAllMembers,
+      });
+
+      result.notification = notificationResult;
+
+      if (notificationResult.success) {
+        console.log(`Successfully sent ${notificationResult.notificationResult.sent} Dependabot notification(s)`);
+      } else {
+        console.error(`Dependabot notification failed: ${notificationResult.message}`);
+      }
+    } catch (error) {
+      console.error('Error sending Dependabot Teams notification:', error.message);
+      result.notificationError = error.message;
+
+      if (telemetryClient) {
+        telemetryClient.trackException(error, {
+          repository: repositoryFullName,
+          alertNumber: String(alert?.number),
+          operation: 'sendDependabotNotification',
+        });
+      }
+    }
+  } else if (!dependabotNotificationService) {
+    console.warn('Dependabot alert received but notification service not configured');
+  }
 
   return result;
 }
@@ -271,15 +309,17 @@ async function handlePing(payload, telemetryClient) {
 
 /**
  * Routes webhook events to appropriate handlers
- * 
+ *
  * @param {string} eventType - The GitHub event type
  * @param {Object} payload - The webhook payload
  * @param {Object} telemetryClient - Application Insights client
  * @param {Object} githubClient - GitHub API client instance (optional)
  * @param {Object} notificationService - CodeScanningNotificationService instance (optional)
+ * @param {Object} [dependabotNotificationService] - DependabotNotificationService instance (optional)
+ * @param {boolean} [notifyAllMembers=false] - Whether to notify all repository members for Dependabot alerts
  * @returns {Promise<Object>} Processing result
  */
-async function routeWebhookEvent(eventType, payload, telemetryClient, githubClient, notificationService) {
+async function routeWebhookEvent(eventType, payload, telemetryClient, githubClient, notificationService, dependabotNotificationService, notifyAllMembers = false) {
   try {
     let result;
 
@@ -289,7 +329,7 @@ async function routeWebhookEvent(eventType, payload, telemetryClient, githubClie
         break;
 
       case 'dependabot_alert':
-        result = await handleDependabotAlert(payload, telemetryClient);
+        result = await handleDependabotAlert(payload, telemetryClient, dependabotNotificationService, notifyAllMembers);
         break;
 
       case 'deployment_protection_rule':
