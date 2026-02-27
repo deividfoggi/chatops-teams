@@ -149,12 +149,14 @@ async function handleCodeScanningAlert(payload, telemetryClient, githubClient, n
  * 
  * @param {Object} payload - The webhook payload
  * @param {Object} telemetryClient - Application Insights client
+ * @param {Object} [repositoryStakeholderService] - RepositoryStakeholderService instance (optional)
  * @returns {Promise<Object>} Processing result
  */
-async function handleDependabotAlert(payload, telemetryClient) {
+async function handleDependabotAlert(payload, telemetryClient, repositoryStakeholderService) {
   const { action, alert, repository, sender } = payload;
+  const repositoryFullName = repository?.full_name || 'unknown';
 
-  console.log(`Processing dependabot_alert: action=${action}, alert=${alert?.number}, repo=${repository?.full_name}`);
+  console.log(`Processing dependabot_alert: action=${action}, alert=${alert?.number}, repo=${repositoryFullName}`);
 
   // Track event in Application Insights
   if (telemetryClient) {
@@ -162,7 +164,7 @@ async function handleDependabotAlert(payload, telemetryClient) {
       eventType: 'dependabot_alert',
       action: action,
       alertNumber: String(alert?.number || 'unknown'),
-      repository: repository?.full_name || 'unknown',
+      repository: repositoryFullName,
       severity: alert?.security_advisory?.severity || 'unknown',
       state: alert?.state || 'unknown',
       package: alert?.security_vulnerability?.package?.name || 'unknown',
@@ -173,9 +175,53 @@ async function handleDependabotAlert(payload, telemetryClient) {
     if (alert?.security_advisory?.severity) {
       telemetryClient.trackMetric('DependabotAlertsBySeverity', 1, {
         severity: alert.security_advisory.severity,
-        repository: repository?.full_name,
+        repository: repositoryFullName,
         package: alert?.security_vulnerability?.package?.name,
       });
+    }
+  }
+
+  // Identify Security Champion (reuses same logic as code scanning - Story 2.4)
+  let securityChampion = null;
+  if (repositoryStakeholderService && repository?.full_name) {
+    try {
+      const championStartTime = Date.now();
+      const [owner, repo] = repository.full_name.split('/');
+      securityChampion = await repositoryStakeholderService.getSecurityChampion(owner, repo);
+      const championDuration = Date.now() - championStartTime;
+
+      if (securityChampion) {
+        console.log(`Security champion identified for Dependabot alert in ${repositoryFullName}: ${securityChampion.github_login} (source: ${securityChampion.source})`);
+      } else {
+        console.log(`No security champion found for ${repositoryFullName}, org security team will be notified`);
+      }
+
+      // Log Security Champion assignment for audit purposes
+      if (telemetryClient) {
+        telemetryClient.trackEvent('DependabotAlertSecurityChampionIdentified', {
+          repository: repositoryFullName,
+          alertNumber: String(alert?.number || 'unknown'),
+          securityChampionFound: String(!!securityChampion),
+          securityChampionLogin: securityChampion?.github_login || 'none',
+          source: securityChampion?.source || 'none',
+          fallbackToOrgTeam: String(!securityChampion),
+          duration: String(championDuration),
+        });
+
+        telemetryClient.trackMetric('DependabotAlertSecurityChampionDuration', championDuration, {
+          repository: repositoryFullName,
+          found: String(!!securityChampion),
+        });
+      }
+    } catch (error) {
+      console.error(`Error identifying security champion for Dependabot alert in ${repositoryFullName}:`, error.message);
+      if (telemetryClient) {
+        telemetryClient.trackException(error, {
+          repository: repositoryFullName,
+          alertNumber: String(alert?.number || 'unknown'),
+          operation: 'identifySecurityChampion',
+        });
+      }
     }
   }
 
@@ -185,9 +231,10 @@ async function handleDependabotAlert(payload, telemetryClient) {
     eventType: 'dependabot_alert',
     action: action,
     alertNumber: alert?.number,
-    repository: repository?.full_name,
+    repository: repositoryFullName,
     severity: alert?.security_advisory?.severity,
     package: alert?.security_vulnerability?.package?.name,
+    securityChampion,
     message: `Dependabot alert ${action}: ${alert?.security_advisory?.summary || 'No summary'}`,
   };
 
@@ -289,7 +336,7 @@ async function routeWebhookEvent(eventType, payload, telemetryClient, githubClie
         break;
 
       case 'dependabot_alert':
-        result = await handleDependabotAlert(payload, telemetryClient);
+        result = await handleDependabotAlert(payload, telemetryClient, notificationService?.repositoryStakeholderService);
         break;
 
       case 'deployment_protection_rule':

@@ -105,6 +105,7 @@ try {
     assert.strictEqual(result.alertNumber, 7);
     assert.strictEqual(result.severity, 'critical');
     assert.strictEqual(result.package, 'lodash');
+    assert.strictEqual(result.securityChampion, null);
     
     console.log('✅ Dependabot alert handler test passed\n');
   }).catch((error) => {
@@ -113,6 +114,153 @@ try {
   });
 } catch (error) {
   console.error('❌ Dependabot alert handler test failed:', error.message);
+  process.exit(1);
+}
+
+// Test 2b: Handle Dependabot alert with Security Champion identified
+console.log('Test 2b: Handle Dependabot alert - Security Champion identified');
+try {
+  const payload = {
+    action: 'created',
+    alert: {
+      number: 8,
+      state: 'open',
+      security_advisory: {
+        severity: 'high',
+        summary: 'SQL Injection in dependency',
+      },
+      security_vulnerability: {
+        package: {
+          name: 'express',
+        },
+      },
+    },
+    repository: {
+      full_name: 'test-org/test-repo',
+    },
+    sender: {
+      login: 'dependabot[bot]',
+    },
+  };
+
+  const mockStakeholderServiceWithChampion = {
+    getSecurityChampion: async () => ({
+      github_login: 'security-hero',
+      source: 'custom_property',
+    }),
+  };
+
+  handleDependabotAlert(payload, mockTelemetryClient, mockStakeholderServiceWithChampion).then((result) => {
+    assert.strictEqual(result.status, 'processed');
+    assert.strictEqual(result.eventType, 'dependabot_alert');
+    assert.ok(result.securityChampion, 'Security champion should be identified');
+    assert.strictEqual(result.securityChampion.github_login, 'security-hero');
+    assert.strictEqual(result.securityChampion.source, 'custom_property');
+    
+    console.log('✅ Dependabot alert Security Champion identification test passed\n');
+  }).catch((error) => {
+    console.error('❌ Dependabot alert Security Champion identification test failed:', error.message);
+    process.exit(1);
+  });
+} catch (error) {
+  console.error('❌ Dependabot alert Security Champion identification test failed:', error.message);
+  process.exit(1);
+}
+
+// Test 2c: Handle Dependabot alert with no Security Champion (fallback to org security team)
+console.log('Test 2c: Handle Dependabot alert - no Security Champion (org security team fallback)');
+try {
+  const payload = {
+    action: 'created',
+    alert: {
+      number: 9,
+      state: 'open',
+      security_advisory: {
+        severity: 'medium',
+        summary: 'Prototype pollution',
+      },
+      security_vulnerability: {
+        package: {
+          name: 'underscore',
+        },
+      },
+    },
+    repository: {
+      full_name: 'test-org/no-champion-repo',
+    },
+    sender: {
+      login: 'dependabot[bot]',
+    },
+  };
+
+  const mockStakeholderServiceNoChampion = {
+    getSecurityChampion: async () => null,
+  };
+
+  handleDependabotAlert(payload, mockTelemetryClient, mockStakeholderServiceNoChampion).then((result) => {
+    assert.strictEqual(result.status, 'processed');
+    assert.strictEqual(result.eventType, 'dependabot_alert');
+    assert.strictEqual(result.securityChampion, null, 'Security champion should be null when not found');
+    
+    console.log('✅ Dependabot alert org security team fallback test passed\n');
+  }).catch((error) => {
+    console.error('❌ Dependabot alert org security team fallback test failed:', error.message);
+    process.exit(1);
+  });
+} catch (error) {
+  console.error('❌ Dependabot alert org security team fallback test failed:', error.message);
+  process.exit(1);
+}
+
+// Test 2d: routeWebhookEvent passes repositoryStakeholderService from notificationService to Dependabot handler
+console.log('Test 2d: Route Dependabot alert - Security Champion via notificationService');
+try {
+  const payload = {
+    action: 'created',
+    alert: {
+      number: 10,
+      state: 'open',
+      security_advisory: {
+        severity: 'critical',
+        summary: 'Critical vulnerability',
+      },
+      security_vulnerability: {
+        package: {
+          name: 'axios',
+        },
+      },
+    },
+    repository: {
+      full_name: 'test-org/test-repo',
+    },
+    sender: {
+      login: 'dependabot[bot]',
+    },
+  };
+
+  const mockNotificationServiceWithStakeholder = {
+    repositoryStakeholderService: {
+      getSecurityChampion: async () => ({
+        github_login: 'sec-champion',
+        source: 'topic',
+      }),
+    },
+  };
+
+  routeWebhookEvent('dependabot_alert', payload, mockTelemetryClient, null, mockNotificationServiceWithStakeholder).then((result) => {
+    assert.strictEqual(result.status, 'processed');
+    assert.strictEqual(result.eventType, 'dependabot_alert');
+    assert.ok(result.securityChampion, 'Security champion should be identified via notificationService');
+    assert.strictEqual(result.securityChampion.github_login, 'sec-champion');
+    assert.strictEqual(result.securityChampion.source, 'topic');
+    
+    console.log('✅ Route Dependabot alert Security Champion via notificationService test passed\n');
+  }).catch((error) => {
+    console.error('❌ Route Dependabot alert Security Champion via notificationService test failed:', error.message);
+    process.exit(1);
+  });
+} catch (error) {
+  console.error('❌ Route Dependabot alert Security Champion via notificationService test failed:', error.message);
   process.exit(1);
 }
 
@@ -351,4 +499,8 @@ setTimeout(() => {
   console.log('- Severity-based filtering: ✅');
   console.log('- Metadata extraction (CWE, CVE, CVSS): ✅');
   console.log('- Escalation decision logic: ✅');
-}, 100);
+  console.log('\nNew Story 3.2 Features Tested:');
+  console.log('- Dependabot Security Champion identification: ✅');
+  console.log('- Org security team fallback when no champion: ✅');
+  console.log('- Security Champion via notificationService: ✅');
+}, 200);
