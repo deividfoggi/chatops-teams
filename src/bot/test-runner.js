@@ -31,10 +31,13 @@ const testCategories = {
     'test.js',                        // Basic bot functionality
     'webhookValidator.test.js',       // Webhook validation
     'alertSeverityFilter.test.js',    // Alert filtering logic
+    '../cards/codeScanningAlertCard.test.js',  // Code scanning alert card
+    '../cards/dependabotAlertCard.test.js',    // Dependabot alert card
   ],
   integration: [
     'webhookHandlers.test.js',        // Webhook event handlers
     'commitAuthorIntegration.test.js', // GitHub integration
+    'dependabotNotificationService.test.js', // Dependabot notification service
   ],
   performance: [
     'webhookPerformance.test.js',     // Performance benchmarks
